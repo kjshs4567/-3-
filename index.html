@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026학년도 대학 입시 수시/정시 지원 및 진학 관리 시스템</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS (Excel 파싱용) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Pretendard', sans-serif; }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- ================= LOGIN SCREEN ================= -->
+  <div id="login-screen" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full space-y-6">
+      <div class="text-center space-y-2">
+        <div class="inline-flex p-3 bg-blue-100 text-blue-600 rounded-full mb-1">
+          <i data-lucide="graduation-cap" class="w-8 h-8"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-slate-900">2026 대입 진학 관리 시스템</h2>
+        <p class="text-xs text-slate-500">접속 권한 유형을 선택하고 비밀번호를 입력해 주세요.</p>
+      </div>
+
+      <!-- Role Tabs -->
+      <div class="grid grid-cols-3 gap-2 p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+        <button id="btn-login-role-student" onclick="selectLoginRole('student')" class="py-2.5 rounded-lg bg-white text-blue-600 shadow-sm transition">학생용</button>
+        <button id="btn-login-role-teacher" onclick="selectLoginRole('teacher')" class="py-2.5 rounded-lg text-slate-600 hover:text-slate-900 transition">교사용</button>
+        <button id="btn-login-role-admin" onclick="selectLoginRole('admin')" class="py-2.5 rounded-lg text-slate-600 hover:text-slate-900 transition">관리자</button>
+      </div>
+
+      <!-- Password Input Form -->
+      <form onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1" id="login-pwd-label">학생용 비밀번호</label>
+          <input type="password" id="login-password-input" required placeholder="비밀번호 입력" class="w-full text-sm px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <p id="login-error-msg" class="text-xs text-red-500 hidden font-medium text-center">비밀번호가 올바르지 않습니다.</p>
+        <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition shadow-md">
+          로그인
+        </button>
+      </form>
+
+      <div class="text-center border-t pt-4">
+        <p class="text-[11px] text-slate-400">장성고등학교 진로진학상담부</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header / Navigation -->
+  <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <div class="flex items-center space-x-3">
+          <i data-lucide="graduation-cap" class="w-8 h-8 text-blue-400"></i>
+          <div>
+            <h1 class="font-bold text-lg leading-none">2026 대입 진학 관리 시스템</h1>
+            <p class="text-xs text-slate-400 mt-1">장성고등학교 진로진학상담부</p>
+          </div>
+        </div>
+
+        <!-- Mode Indicator & Navigation -->
+        <div class="flex items-center space-x-3">
+          <!-- Role Badge -->
+          <span id="header-role-badge" class="px-2.5 py-1 bg-blue-900 text-blue-200 border border-blue-700 text-xs rounded-full font-medium">
+            학생용 접속중
+          </span>
+
+          <!-- Admin Tools (Visible to Teacher & Admin) -->
+          <button id="btn-admin-modal" onclick="openUploadModal()" class="bg-amber-600 hover:bg-amber-500 text-white text-xs px-3 py-1.5 rounded-md flex items-center space-x-1 font-medium transition shadow-sm">
+            <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+            <span>관리자 설정</span>
+          </button>
+
+          <!-- Logout Button -->
+          <button onclick="handleLogout()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-1.5 rounded-md flex items-center space-x-1 font-medium transition border border-slate-700">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+            <span>로그아웃</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Teacher Sub Navigation -->
+  <nav id="teacher-nav" class="bg-white border-b border-slate-200 hidden">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex space-x-8">
+        <button onclick="switchTeacherTab('yearly')" id="tab-yearly" class="border-blue-600 text-blue-600 py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2">
+          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+          <span>[연도별 목록]</span>
+        </button>
+        <button onclick="switchTeacherTab('class')" id="tab-class" class="border-transparent text-slate-500 hover:text-slate-700 py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2">
+          <i data-lucide="layout-grid" class="w-4 h-4"></i>
+          <span>[학급별 목록]</span>
+        </button>
+        <button onclick="switchTeacherTab('homeroom')" id="tab-homeroom" class="border-transparent text-slate-500 hover:text-slate-700 py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2">
+          <i data-lucide="clipboard-list" class="w-4 h-4"></i>
+          <span>[담임교사 관리 페이지]</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Body -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- ================= TEACHER ROLE VIEWS ================= -->
+    <div id="teacher-view" class="hidden">
+      
+      <!-- TAB 1: 연도별 목록 -->
+      <section id="view-yearly" class="space-y-6">
+        <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">2026학년도 수시 지원 및 진학 통계</h2>
+            <p class="text-xs text-slate-500 mt-0.5">대교협 데이터 기준 수시 지원 현황 요약 리포트</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium">최종 업데이트: 2026.09.30</span>
+          </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-xs text-slate-500 font-medium">총 재학생 수</p>
+            <p class="text-2xl font-bold text-slate-900 mt-1" id="kpi-total-students">240명</p>
+            <p class="text-xs text-emerald-600 mt-1">3학년 1~10반 대상</p>
+          </div>
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-xs text-slate-500 font-medium">총 지원 건수 (6수시)</p>
+            <p class="text-2xl font-bold text-blue-600 mt-1" id="kpi-total-apps">1,440건</p>
+            <p class="text-xs text-slate-400 mt-1">학생당 평균 6.0개</p>
+          </div>
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-xs text-slate-500 font-medium">1단계 합격 건수</p>
+            <p class="text-2xl font-bold text-amber-600 mt-1" id="kpi-stage1-pass">312건</p>
+            <p class="text-xs text-slate-400 mt-1">진행률 21.6%</p>
+          </div>
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-xs text-slate-500 font-medium">최종 합격자 수</p>
+            <p class="text-2xl font-bold text-emerald-600 mt-1" id="kpi-final-pass">185명</p>
+            <p class="text-xs text-emerald-600 mt-1">진학 확정율 77.1%</p>
+          </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-4">전형 유형별 지원 비중</h3>
+            <div class="h-64 flex justify-center items-center">
+              <canvas id="chart-type"></canvas>
+            </div>
+          </div>
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-4">주요 지원 대학 TOP 10</h3>
+            <div class="h-64">
+              <canvas id="chart-univ"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: 학급별 목록 -->
+      <section id="view-class" class="hidden space-y-6">
+        <!-- Class Selector & Tools -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center space-x-3">
+            <label class="text-sm font-bold text-slate-700">학급 선택:</label>
+            <select id="select-class-dropdown" onchange="renderClassTable()" class="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2 font-medium">
+              <option value="1">3학년 1반</option>
+              <option value="2">3학년 2반</option>
+              <option value="3">3학년 3반</option>
+              <option value="4">3학년 4반</option>
+              <option value="5">3학년 5반</option>
+            </select>
+            <span class="text-xs text-slate-500" id="class-student-count">학생수: 24명</span>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button onclick="exportClassExcel()" class="px-3 py-1.5 bg-emerald-700 text-white text-xs font-medium rounded-lg hover:bg-emerald-600 transition flex items-center space-x-1">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span>현재 반 엑셀 내보내기</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Class Table -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+          <table class="w-full text-xs text-left text-slate-600">
+            <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b border-slate-200">
+              <tr>
+                <th scope="col" class="px-3 py-3 text-center">번호</th>
+                <th scope="col" class="px-3 py-3 text-center">이름</th>
+                <th scope="col" class="px-3 py-3 text-center">내신 (전교과)</th>
+                <th scope="col" class="px-3 py-3">지원1 (대학/학과/전형/결과)</th>
+                <th scope="col" class="px-3 py-3">지원2 (대학/학과/전형/결과)</th>
+                <th scope="col" class="px-3 py-3">지원3 (대학/학과/전형/결과)</th>
+                <th scope="col" class="px-3 py-3">지원4 (대학/학과/전형/결과)</th>
+                <th scope="col" class="px-3 py-3">지원5 (대학/학과/전형/결과)</th>
+                <th scope="col" class="px-3 py-3">지원6 (대학/학과/전형/결과)</th>
+              </tr>
+            </thead>
+            <tbody id="class-table-body" class="divide-y divide-slate-200">
+              <!-- Dynamically Populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 3: 담임교사 관리 페이지 -->
+      <section id="view-homeroom" class="hidden space-y-6">
+        <!-- Homeroom Sub Navigation -->
+        <div class="flex space-x-3 border-b border-slate-200 pb-2">
+          <button onclick="switchHomeroomSubTab('overview')" id="subtab-overview" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold shadow-sm">
+            [한눈에 보기]
+          </button>
+          <button onclick="switchHomeroomSubTab('individual')" id="subtab-individual" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-300">
+            [개별 학생 관리]
+          </button>
+          <button onclick="switchHomeroomSubTab('calendar')" id="subtab-calendar" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-300 flex items-center space-x-1">
+            <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+            <span>[달력 보기]</span>
+          </button>
+        </div>
+
+        <!-- Sub Tab 1: 한눈에 보기 (Cards) -->
+        <div id="hr-subview-overview" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Dynamically populated student cards -->
+        </div>
+
+        <!-- Sub Tab 2: 개별 학생 관리 (Detail Edit) -->
+        <div id="hr-subview-individual" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Left: Student Selector List -->
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+            <h3 class="font-bold text-sm text-slate-800">3학년 1반 학생 목록</h3>
+            <div id="student-list-buttons" class="space-y-1 max-h-[600px] overflow-y-auto pr-1">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Right: Individual Student Detailed Form -->
+          <div class="lg:col-span-2 space-y-6">
+            <!-- Student Summary Info -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
+              <div>
+                <h3 class="text-lg font-bold text-slate-900" id="detail-student-name">고범주 <span class="text-sm font-normal text-slate-500">(3학년 1반 1번)</span></h3>
+                <p class="text-xs text-slate-500 mt-1">내신 성적 (전교과): <span class="font-semibold text-blue-600" id="detail-student-gpa">8.59</span> | 국영수사과: 8.55</p>
+              </div>
+              <button onclick="saveStudentDetails()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-sm flex items-center space-x-1">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                <span>저장하기</span>
+              </button>
+            </div>
+
+            <!-- 6 Applications Edit Table -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <h4 class="font-bold text-xs uppercase text-slate-400 tracking-wider">수시 6회 지원 상세 입력 및 수시일정 자동 매칭</h4>
+              
+              <div class="space-y-4" id="applications-edit-container">
+                <!-- Dynamically Populated 6 Cards -->
+              </div>
+            </div>
+
+            <!-- Counseling Log -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <h4 class="font-bold text-xs uppercase text-slate-400 tracking-wider">진로진학 상담 일지</h4>
+              <textarea id="counseling-notes" rows="4" class="w-full text-xs p-3 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="학생과의 상담 내용, 지원 전략, 특이사항을 기록하세요..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub Tab 3: 달력 보기 -->
+        <div id="hr-subview-calendar" class="hidden space-y-4">
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+              <h3 class="font-bold text-slate-800 text-base" id="calendar-month-title">2026년 10월 주요 수시 일정</h3>
+              <div class="flex space-x-1">
+                <button onclick="changeCalendarMonth(-1)" class="p-1 border rounded hover:bg-slate-100"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                <button onclick="changeCalendarMonth(1)" class="p-1 border rounded hover:bg-slate-100"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+              </div>
+            </div>
+            <div class="flex items-center space-x-3 text-xs">
+              <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 mr-1"></span>1단계발표</span>
+              <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-purple-500 mr-1"></span>면접/실기/논술</span>
+              <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-1"></span>최종발표</span>
+            </div>
+          </div>
+
+          <!-- Calendar Board -->
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="calendar-grid bg-slate-100 border-b text-center font-bold text-xs text-slate-600 py-2">
+              <div class="text-red-500">일</div>
+              <div>월</div>
+              <div>화</div>
+              <div>수</div>
+              <div>목</div>
+              <div>금</div>
+              <div class="text-blue-500">토</div>
+            </div>
+            <div class="calendar-grid divide-x divide-y divide-slate-200 min-h-[500px]" id="calendar-cells">
+              <!-- Dynamically Generated Calendar Grid -->
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- ================= STUDENT ROLE VIEW ================= -->
+    <div id="student-view" class="space-y-6">
+      <!-- Search Banner -->
+      <div class="bg-gradient-to-r from-slate-900 to-blue-900 text-white p-6 rounded-2xl shadow-md space-y-4">
+        <div>
+          <h2 class="text-xl font-bold">2026학년도 선배들의 수시 지원 & 합격 사례 조회</h2>
+          <p class="text-xs text-slate-300 mt-1">개인정보는 익명화 처리되어 진학 결과 정보만 안전하게 공유됩니다.</p>
+        </div>
+
+        <!-- Filter Form -->
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">대학명</label>
+            <input type="text" id="student-search-univ" placeholder="예: 유원대, 용인대" class="w-full text-xs p-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">전형 유형</label>
+            <select id="student-search-type" class="w-full text-xs p-2.5 bg-slate-800 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="">전체 전형</option>
+              <option value="교과">학생부교과</option>
+              <option value="종합">학생부종합</option>
+              <option value="실기">실기/실적</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">내신 성적대</label>
+            <select id="student-search-gpa" class="w-full text-xs p-2.5 bg-slate-800 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="">전체 성적대</option>
+              <option value="1">1.00 ~ 2.00 등급</option>
+              <option value="2">2.00 ~ 3.00 등급</option>
+              <option value="3">3.00 ~ 5.00 등급</option>
+              <option value="5">5.00 등급 이상</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button onclick="renderStudentResults()" class="w-full p-2.5 bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold rounded-lg transition flex items-center justify-center space-x-1">
+              <i data-lucide="search" class="w-4 h-4"></i>
+              <span>사례 검색하기</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result Cards -->
+      <div id="student-results-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Dynamically rendered anonymous cards -->
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ================= UPLOAD & PWD MODAL ================= -->
+  <div id="modal-upload" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-xl w-full mx-4 shadow-2xl border border-slate-100 space-y-6">
+      
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 class="font-bold text-slate-800 text-lg flex items-center space-x-2">
+          <i data-lucide="settings" class="w-5 h-5 text-blue-600"></i>
+          <span>관리자 설정</span>
+        </h3>
+        <button onclick="closeUploadModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <!-- Settings Sub Tabs -->
+      <div class="flex space-x-4 border-b border-slate-200 pb-2">
+        <button onclick="switchAdminSubTab('data')" id="tab-admin-data" class="text-xs font-bold text-blue-600 border-b-2 border-blue-600 pb-1">
+          [데이터 업로드]
+        </button>
+        <button onclick="switchAdminSubTab('password')" id="tab-admin-pwd" class="text-xs font-medium text-slate-500 hover:text-slate-800 pb-1">
+          [비밀번호 변경]
+        </button>
+      </div>
+
+      <!-- Admin Sub Tab 1: Excel Upload -->
+      <div id="admin-subview-data" class="space-y-4">
+        <!-- Upload Zone 1: 대교협 지원결과 -->
+        <div class="border-2 border-dashed border-slate-300 rounded-xl p-4 hover:border-blue-500 transition space-y-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <h4 class="font-bold text-xs text-slate-800">[대교협 지원결과 업로드]</h4>
+              <p class="text-[11px] text-slate-500">양식: 학생별 지원 대학, 내신 성적, 합불 상태 데이터</p>
+            </div>
+            <label class="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg cursor-pointer hover:bg-blue-500 transition">
+              파일 선택
+              <input type="file" id="file-input-results" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleResultFileUpload(event)">
+            </label>
+          </div>
+          <p class="text-[10px] text-emerald-600 font-medium" id="status-upload-results">✓ 기본 2026학년도 샘플 데이터 탑재됨</p>
+        </div>
+
+        <!-- Upload Zone 2: 수시일정 -->
+        <div class="border-2 border-dashed border-slate-300 rounded-xl p-4 hover:border-amber-500 transition space-y-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <h4 class="font-bold text-xs text-slate-800">[수시일정 업로드]</h4>
+              <p class="text-[11px] text-slate-500">양식: '일정목록' 시트 포함 2026-2027 대학별 수시 일정 데이터</p>
+            </div>
+            <label class="px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg cursor-pointer hover:bg-amber-500 transition">
+              파일 선택
+              <input type="file" id="file-input-schedules" accept=".xlsx, .xls" class="hidden" onchange="handleScheduleFileUpload(event)">
+            </label>
+          </div>
+          <p class="text-[10px] text-emerald-600 font-medium" id="status-upload-schedules">✓ 기본 1,838건 전형 일정 데이터 탑재됨</p>
+        </div>
+      </div>
+
+      <!-- Admin Sub Tab 2: Password Change -->
+      <div id="admin-subview-password" class="hidden space-y-4">
+        <div id="pwd-change-admin-only" class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">관리자 통합 비밀번호</label>
+            <input type="text" id="input-new-pwd-admin" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">교사용 비밀번호</label>
+            <input type="text" id="input-new-pwd-teacher" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">학생용 비밀번호</label>
+            <input type="text" id="input-new-pwd-student" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
+          </div>
+          <button onclick="saveNewPasswords()" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition">
+            변경 비밀번호 저장하기
+          </button>
+        </div>
+        <p id="pwd-change-denied" class="hidden text-xs text-red-500 font-medium">※ 비밀번호 변경은 [관리자] 권한으로 로그인했을 때만 가능합니다.</p>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button onclick="closeUploadModal()" class="px-4 py-2 bg-slate-800 text-white text-xs font-bold rounded-lg hover:bg-slate-700">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 mt-auto">
+    <p>2026학년도 고등학교 대입 수시/정시 진학 누적 관리 시스템 | Powered by GitHub Pages</p>
+  </footer>
+
+  <!-- Javascript Logic -->
+  <script>
+    // Initialize Icons
+    lucide.createIcons();
+
+    // Default Passwords & Storage Sync
+    let passwords = {
+      admin: "작별인사",
+      teacher: "jshs2026!",
+      student: "장성고 파이팅"
+    };
+
+    if (localStorage.getItem('db_passwords_2026')) {
+      try { passwords = JSON.parse(localStorage.getItem('db_passwords_2026')); } catch(e){}
+    }
+
+    // Login Role Selection State
+    let selectedLoginRole = 'student'; 
+    let currentRole = null; // 'admin' | 'teacher' | 'student'
+
+    function selectLoginRole(role) {
+      selectedLoginRole = role;
+      const btnAdmin = document.getElementById('btn-login-role-admin');
+      const btnTeacher = document.getElementById('btn-login-role-teacher');
+      const btnStudent = document.getElementById('btn-login-role-student');
+      const label = document.getElementById('login-pwd-label');
+
+      btnAdmin.className = "py-2.5 rounded-lg text-slate-600 hover:text-slate-900 transition";
+      btnTeacher.className = "py-2.5 rounded-lg text-slate-600 hover:text-slate-900 transition";
+      btnStudent.className = "py-2.5 rounded-lg text-slate-600 hover:text-slate-900 transition";
+
+      if(role === 'admin') {
+        btnAdmin.className = "py-2.5 rounded-lg bg-white text-blue-600 shadow-sm transition font-bold";
+        label.innerText = "관리자 비밀번호";
+      } else if(role === 'teacher') {
+        btnTeacher.className = "py-2.5 rounded-lg bg-white text-blue-600 shadow-sm transition font-bold";
+        label.innerText = "교사용 비밀번호";
+      } else {
+        btnStudent.className = "py-2.5 rounded-lg bg-white text-blue-600 shadow-sm transition font-bold";
+        label.innerText = "학생용 비밀번호";
+      }
+      document.getElementById('login-error-msg').classList.add('hidden');
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const inputPwd = document.getElementById('login-password-input').value;
+      const targetPwd = passwords[selectedLoginRole];
+
+      if (inputPwd === targetPwd) {
+        currentRole = selectedLoginRole;
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('login-password-input').value = '';
+        applyRoleUI();
+      } else {
+        document.getElementById('login-error-msg').classList.remove('hidden');
+      }
+    }
+
+    function handleLogout() {
+      currentRole = null;
+      document.getElementById('login-screen').classList.remove('hidden');
+      selectLoginRole('student');
+    }
+
+    function applyRoleUI() {
+      const badge = document.getElementById('header-role-badge');
+      const adminBtn = document.getElementById('btn-admin-modal');
+      const teacherNav = document.getElementById('teacher-nav');
+      const teacherView = document.getElementById('teacher-view');
+      const studentView = document.getElementById('student-view');
+
+      if (currentRole === 'admin') {
+        badge.innerText = "🔑 관리자 접속중";
+        badge.className = "px-2.5 py-1 bg-amber-900 text-amber-200 border border-amber-700 text-xs rounded-full font-medium";
+        adminBtn.classList.remove('hidden');
+        teacherNav.classList.remove('hidden');
+        teacherView.classList.remove('hidden');
+        studentView.classList.add('hidden');
+        switchTeacherTab('yearly');
+      } else if (currentRole === 'teacher') {
+        badge.innerText = "👨‍🏫 교사용 접속중";
+        badge.className = "px-2.5 py-1 bg-blue-900 text-blue-200 border border-blue-700 text-xs rounded-full font-medium";
+        adminBtn.classList.remove('hidden');
+        teacherNav.classList.remove('hidden');
+        teacherView.classList.remove('hidden');
+        studentView.classList.add('hidden');
+        switchTeacherTab('yearly');
+      } else {
+        badge.innerText = "🎓 학생용 접속중";
+        badge.className = "px-2.5 py-1 bg-emerald-900 text-emerald-200 border border-emerald-700 text-xs rounded-full font-medium";
+        adminBtn.classList.add('hidden');
+        teacherNav.classList.add('hidden');
+        teacherView.classList.add('hidden');
+        studentView.classList.remove('hidden');
+        renderStudentResults();
+      }
+    }
+
+    // Application Global State Data
+    let dbStudents = [
+      {
+        id: 10101, grade: 3, classNum: 1, number: 1, name: "고범주", gpa: 8.59,
+        apps: [
+          { choice: 1, univ: "유원대학교(영동)", type: "학생부위주(교과)", detailType: "학생부교과(특기자)", dept: "스포츠학부", stage1: "-", status: "최종합격", interviewDate: "2026-10-27", finalDate: "2026-12-18" },
+          { choice: 2, univ: "용인대학교(용인)", type: "실기/실적위주", detailType: "체육우수자 특별전형", dept: "무도학과", stage1: "-", status: "1단계합격", interviewDate: "2026-10-15", finalDate: "2026-11-13" },
+          { choice: 3, univ: "가천대학교", type: "학생부위주(종합)", detailType: "가천바람개비", dept: "체육전공", stage1: "합격", status: "1단계합격", interviewDate: "2026-10-24", finalDate: "2026-12-15" },
+          { choice: 4, univ: "인하대학교", type: "실기/실적위주", detailType: "체육특기자", dept: "체육교육과", stage1: "-", status: "불합격", interviewDate: "", finalDate: "2026-12-10" },
+          { choice: 5, univ: "경희대학교(국제)", type: "학생부위주(종합)", detailType: "네오르네상스", dept: "체육학과", stage1: "불합격", status: "불합격", interviewDate: "", finalDate: "2026-12-18" },
+          { choice: 6, univ: "단국대학교(죽전)", type: "학생부위주(교과)", detailType: "지역균형선발", dept: "운동처방재활", stage1: "-", status: "대기", interviewDate: "", finalDate: "2026-12-15" }
+        ],
+        notes: "체육 특기 및 교과 병행 지원. 면접 준비 상태 양호함."
+      },
+      {
+        id: 10102, grade: 3, classNum: 1, number: 2, name: "김민준", gpa: 2.15,
+        apps: [
+          { choice: 1, univ: "연세대학교", type: "학생부위주(종합)", detailType: "활동우수형", dept: "컴퓨터과학과", stage1: "합격", status: "1단계합격", interviewDate: "2026-11-21", finalDate: "2026-12-15" },
+          { choice: 2, univ: "고려대학교", type: "학생부위주(종합)", detailType: "학업우수전형", dept: "인공지능학과", stage1: "합격", status: "1단계합격", interviewDate: "2026-11-28", finalDate: "2026-12-18" },
+          { choice: 3, univ: "성균관대학교", type: "학생부위주(종합)", detailType: "학과모집", dept: "소프트웨어학", stage1: "-", status: "최종합격", interviewDate: "", finalDate: "2026-12-10" },
+          { choice: 4, univ: "한양대학교", type: "학생부위주(교과)", detailType: "지역균형발전", dept: "컴퓨터소프트웨어", stage1: "-", status: "최종합격", interviewDate: "", finalDate: "2026-12-12" },
+          { choice: 5, univ: "서강대학교", type: "학생부위주(종합)", detailType: "일반전형", dept: "시스템반도체", stage1: "-", status: "대기", interviewDate: "", finalDate: "2026-12-15" },
+          { choice: 6, univ: "중앙대학교", type: "학생부위주(종합)", detailType: "CAU융합인재", dept: "소프트웨어", stage1: "-", status: "최종합격", interviewDate: "", finalDate: "2026-12-11" }
+        ],
+        notes: "수능 최저학력기준 충족 여부 확인 필요. 면접 모의 연습 실시 완료."
+      }
+    ];
+
+    let dbSchedules = [
+      { date: "2026-10-15", univ: "용인대학교(용인)", type: "2차(면접/실기)", detail: "체육우수자 실기고사 10:00" },
+      { date: "2026-10-24", univ: "가천대학교", type: "2차(면접/실기)", detail: "가천바람개비 면접고사" },
+      { date: "2026-10-27", univ: "유원대학교(영동)", type: "2차(면접/실기)", detail: "특기자 면접일자" },
+      { date: "2026-11-21", univ: "연세대학교", type: "2차(면접/실기)", detail: "활동우수형 면접" },
+      { date: "2026-11-28", univ: "고려대학교", type: "2차(면접/실기)", detail: "학업우수전형 면접" },
+      { date: "2026-12-18", univ: "유원대학교(영동)", type: "최종발표", detail: "최종합격자 발표" }
+    ];
+
+    if (localStorage.getItem('db_students_2026')) {
+      try { dbStudents = JSON.parse(localStorage.getItem('db_students_2026')); } catch(e){}
+    }
+    if (localStorage.getItem('db_schedules_2026')) {
+      try { dbSchedules = JSON.parse(localStorage.getItem('db_schedules_2026')); } catch(e){}
+    }
+
+    let currentTeacherTab = 'yearly';
+    let currentHomeroomSubTab = 'overview';
+    let selectedStudentId = null;
+    let calendarCurrentDate = new Date(2026, 9, 1);
+
+    function switchTeacherTab(tab) {
+      currentTeacherTab = tab;
+      ['yearly', 'class', 'homeroom'].forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        const view = document.getElementById(`view-${t}`);
+        if(t === tab) {
+          btn.className = "border-blue-600 text-blue-600 py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2";
+          view.classList.remove('hidden');
+        } else {
+          btn.className = "border-transparent text-slate-500 hover:text-slate-700 py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2";
+          view.classList.add('hidden');
+        }
+      });
+
+      if(tab === 'yearly') initCharts();
+      if(tab === 'class') renderClassTable();
+      if(tab === 'homeroom') renderHomeroomView();
+    }
+
+    function switchHomeroomSubTab(subtab) {
+      currentHomeroomSubTab = subtab;
+      ['overview', 'individual', 'calendar'].forEach(st => {
+        const btn = document.getElementById(`subtab-${st}`);
+        const view = document.getElementById(`hr-subview-${st}`);
+        if(st === subtab) {
+          btn.className = "px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold shadow-sm";
+          view.classList.remove('hidden');
+        } else {
+          btn.className = "px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-300";
+          view.classList.add('hidden');
+        }
+      });
+
+      if(subtab === 'individual') renderIndividualStudentView();
+      if(subtab === 'calendar') renderCalendar();
+    }
+
+    function renderClassTable() {
+      const cls = parseInt(document.getElementById('select-class-dropdown').value);
+      const students = dbStudents.filter(s => s.classNum === cls);
+      document.getElementById('class-student-count').innerText = `학생수: ${students.length}명`;
+
+      const tbody = document.getElementById('class-table-body');
+      tbody.innerHTML = '';
+
+      students.forEach(st => {
+        let tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 border-b border-slate-100";
+        
+        let appTds = '';
+        for(let i=0; i<6; i++) {
+          const app = st.apps[i];
+          if(app && app.univ) {
+            let statusColor = 'bg-slate-100 text-slate-600';
+            if(app.status === '최종합격') statusColor = 'bg-emerald-100 text-emerald-800 font-bold';
+            if(app.status === '1단계합격') statusColor = 'bg-amber-100 text-amber-800 font-bold';
+            if(app.status === '불합격') statusColor = 'bg-red-50 text-red-600';
+
+            appTds += `
+              <td class="px-3 py-2 text-[11px]">
+                <div class="font-semibold text-slate-800">${app.univ}</div>
+                <div class="text-slate-500">${app.dept || '-'}</div>
+                <div class="mt-0.5"><span class="px-1.5 py-0.5 text-[9px] rounded ${statusColor}">${app.status}</span></div>
+              </td>
+            `;
+          } else {
+            appTds += `<td class="px-3 py-2 text-[11px] text-slate-300">-</td>`;
+          }
+        }
+
+        tr.innerHTML = `
+          <td class="px-3 py-2.5 text-center font-medium">${st.number}</td>
+          <td class="px-3 py-2.5 text-center font-bold text-slate-800">${st.name}</td>
+          <td class="px-3 py-2.5 text-center font-semibold text-blue-600">${st.gpa}</td>
+          ${appTds}
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderHomeroomView() {
+      const container = document.getElementById('hr-subview-overview');
+      container.innerHTML = '';
+
+      dbStudents.forEach(st => {
+        let card = document.createElement('div');
+        card.className = "bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 hover:border-blue-300 transition";
+        
+        let appsList = st.apps.map(a => {
+          if(!a.univ) return `<div class="text-[11px] text-slate-300 py-0.5">미지원</div>`;
+          let badge = 'bg-slate-100 text-slate-600';
+          if(a.status === '최종합격') badge = 'bg-emerald-100 text-emerald-800 font-bold';
+          if(a.status === '1단계합격') badge = 'bg-amber-100 text-amber-800 font-bold';
+          if(a.status === '불합격') badge = 'bg-red-50 text-red-600';
+
+          return `
+            <div class="flex justify-between items-center text-[11px] py-1 border-b border-slate-100 last:border-0">
+              <span class="truncate max-w-[150px]"><strong class="text-slate-800">${a.univ}</strong> ${a.dept}</span>
+              <span class="px-1.5 py-0.5 rounded text-[10px] ${badge}">${a.status}</span>
+            </div>
+          `;
+        }).join('');
+
+        card.innerHTML = `
+          <div class="flex justify-between items-start border-b pb-2">
+            <div>
+              <h4 class="font-bold text-sm text-slate-900">${st.name} <span class="text-xs font-normal text-slate-500">(${st.number}번)</span></h4>
+              <p class="text-[11px] text-slate-500">내신: <strong class="text-blue-600">${st.gpa}</strong> 등급</p>
+            </div>
+            <button onclick="selectStudentForEdit(${st.id})" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium rounded">
+              상세 관리
+            </button>
+          </div>
+          <div class="space-y-0.5">
+            ${appsList}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function selectStudentForEdit(id) {
+      selectedStudentId = id;
+      switchHomeroomSubTab('individual');
+    }
+
+    function renderIndividualStudentView() {
+      const btnContainer = document.getElementById('student-list-buttons');
+      btnContainer.innerHTML = '';
+
+      if(!selectedStudentId && dbStudents.length > 0) {
+        selectedStudentId = dbStudents[0].id;
+      }
+
+      dbStudents.forEach(st => {
+        let btn = document.createElement('button');
+        btn.onclick = () => { selectedStudentId = st.id; renderIndividualStudentView(); };
+        const isSelected = st.id === selectedStudentId;
+        btn.className = `w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex justify-between items-center ${isSelected ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200' : 'hover:bg-slate-50 text-slate-700'}`;
+        btn.innerHTML = `<span>${st.number}번 ${st.name}</span><span class="text-[10px] text-slate-400">${st.gpa}등급</span>`;
+        btnContainer.appendChild(btn);
+      });
+
+      const st = dbStudents.find(s => s.id === selectedStudentId);
+      if(!st) return;
+
+      document.getElementById('detail-student-name').innerHTML = `${st.name} <span class="text-sm font-normal text-slate-500">(${st.grade}학년 ${st.classNum}반 ${st.number}번)</span>`;
+      document.getElementById('detail-student-gpa').innerText = st.gpa;
+      document.getElementById('counseling-notes').value = st.notes || '';
+
+      const container = document.getElementById('applications-edit-container');
+      container.innerHTML = '';
+
+      st.apps.forEach((app, idx) => {
+        const matchedSched = dbSchedules.filter(s => s.univ === app.univ);
+        let scheduleMatchHtml = '';
+        if(matchedSched.length > 0) {
+          scheduleMatchHtml = `<div class="mt-2 p-2 bg-amber-50 rounded border border-amber-200 text-[11px] text-amber-800">
+            <strong>📅 [수시일정 업로드] 자동 매칭:</strong> ${matchedSched.map(m => `[${m.type}] ${m.date}${m.detail}`).join(' | ')}
+          </div>`;
+        }
+
+        let card = document.createElement('div');
+        card.className = "p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3";
+        card.innerHTML = `
+          <div class="flex justify-between items-center font-bold text-xs text-slate-700">
+            <span>지망 ${idx+1}</span>
+            <span class="text-xs text-emerald-600 font-normal">자동 연동 적용됨</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">대학명</label>
+              <input type="text" value="${app.univ || ''}" id="edit-app-univ-${idx}" class="w-full p-1.5 border rounded bg-white">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">모집단위(학과)</label>
+              <input type="text" value="${app.dept || ''}" id="edit-app-dept-${idx}" class="w-full p-1.5 border rounded bg-white">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">전형유형</label>
+              <input type="text" value="${app.type || ''}" id="edit-app-type-${idx}" class="w-full p-1.5 border rounded bg-white">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">1단계 결과</label>
+              <select id="edit-app-stage1-${idx}" class="w-full p-1.5 border rounded bg-white">
+                <option value="-" ${app.stage1 === '-' ? 'selected':''}>- (해당없음)</option>
+                <option value="합격" ${app.stage1 === '합격' ? 'selected':''}>합격</option>
+                <option value="불합격" ${app.stage1 === '불합격' ? 'selected':''}>불합격</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">최종 결과</label>
+              <select id="edit-app-status-${idx}" class="w-full p-1.5 border rounded bg-white">
+                <option value="대기" ${app.status === '대기' ? 'selected':''}>대기</option>
+                <option value="1단계합격" ${app.status === '1단계합격' ? 'selected':''}>1단계합격</option>
+                <option value="최종합격" ${app.status === '최종합격' ? 'selected':''}>최종합격</option>
+                <option value="불합격" ${app.status === '불합격' ? 'selected':''}>불합격</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">면접/실기 일자</label>
+              <input type="date" value="${app.interviewDate || ''}" id="edit-app-date-${idx}" class="w-full p-1.5 border rounded bg-white">
+            </div>
+          </div>
+          ${scheduleMatchHtml}
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function saveStudentDetails() {
+      const st = dbStudents.find(s => s.id === selectedStudentId);
+      if(!st) return;
+
+      st.notes = document.getElementById('counseling-notes').value;
+      for(let i=0; i<6; i++) {
+        st.apps[i].univ = document.getElementById(`edit-app-univ-${i}`).value;
+        st.apps[i].dept = document.getElementById(`edit-app-dept-${i}`).value;
+        st.apps[i].type = document.getElementById(`edit-app-type-${i}`).value;
+        st.apps[i].stage1 = document.getElementById(`edit-app-stage1-${i}`).value;
+        st.apps[i].status = document.getElementById(`edit-app-status-${i}`).value;
+        st.apps[i].interviewDate = document.getElementById(`edit-app-date-${i}`).value;
+      }
+
+      localStorage.setItem('db_students_2026', JSON.stringify(dbStudents));
+      alert("성공적으로 저장되었습니다.");
+      renderHomeroomView();
+    }
+
+    function renderCalendar() {
+      const year = calendarCurrentDate.getFullYear();
+      const month = calendarCurrentDate.getMonth();
+      document.getElementById('calendar-month-title').innerText = `${year}년 ${month+1}월 주요 수시 일정`;
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const lastDate = new Date(year, month+1, 0).getDate();
+      const container = document.getElementById('calendar-cells');
+      container.innerHTML = '';
+
+      for(let i=0; i<firstDay; i++) {
+        container.appendChild(document.createElement('div'));
+      }
+
+      for(let date=1; date<=lastDate; date++) {
+        const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+        let cell = document.createElement('div');
+        cell.className = "p-1 min-h-[70px] bg-white text-xs hover:bg-slate-50";
+        cell.innerHTML = `<div class="font-bold text-[10px] text-slate-400 mb-1">${date}</div>`;
+
+        dbStudents.forEach(st => {
+          st.apps.forEach(app => {
+            if(app.interviewDate === dateStr) {
+              cell.innerHTML += `<div class="bg-purple-100 text-purple-800 text-[9px] p-0.5 rounded mb-0.5 truncate" title="${st.name}:${app.univ}">🗣 ${st.name}(${app.univ})</div>`;
+            }
+          });
+        });
+
+        dbSchedules.filter(s => s.date === dateStr).forEach(sch => {
+          cell.innerHTML += `<div class="bg-amber-100 text-amber-800 text-[9px] p-0.5 rounded mb-0.5 truncate" title="${sch.univ}">${sch.univ}</div>`;
+        });
+
+        container.appendChild(cell);
+      }
+    }
+
+    function changeCalendarMonth(delta) {
+      calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function renderStudentResults() {
+      const container = document.getElementById('student-results-container');
+      container.innerHTML = '';
+
+      const univFilter = document.getElementById('student-search-univ').value.trim();
+
+      dbStudents.forEach(st => {
+        const anonName = st.name.charAt(0) + "OO";
+        
+        st.apps.forEach(app => {
+          if(!app.univ) return;
+          if(univFilter && !app.univ.includes(univFilter)) return;
+
+          let badge = 'bg-slate-100 text-slate-600';
+          if(app.status === '최종합격') badge = 'bg-emerald-100 text-emerald-800 font-bold';
+          if(app.status === '1단계합격') badge = 'bg-amber-100 text-amber-800 font-bold';
+
+          let card = document.createElement('div');
+          card.className = "bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2 hover:shadow-md transition";
+          card.innerHTML = `
+            <div class="flex justify-between items-start border-b pb-2">
+              <div>
+                <span class="px-2 py-0.5 text-[10px] bg-blue-50 text-blue-700 rounded-full font-medium">내신 ${st.gpa} 등급대</span>
+                <h4 class="font-bold text-sm text-slate-800 mt-1">${app.univ}</h4>
+                <p class="text-xs text-slate-500">${app.dept} (${app.type})</p>
+              </div>
+              <span class="px-2 py-1 rounded text-xs ${badge}">${app.status}</span>
+            </div>
+            <div class="text-[11px] text-slate-400 flex justify-between pt-1">
+              <span>합격사례 ID: #${st.id.toString().slice(-3)}</span>
+              <span>학생: ${anonName}</span>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      });
+    }
+
+    // Modal Control & Subtabs
+    function openUploadModal() { 
+      document.getElementById('modal-upload').classList.remove('hidden');
+      switchAdminSubTab('data');
+    }
+    function closeUploadModal() { document.getElementById('modal-upload').classList.add('hidden'); }
+
+    function switchAdminSubTab(sub) {
+      const tabData = document.getElementById('tab-admin-data');
+      const tabPwd = document.getElementById('tab-admin-pwd');
+      const viewData = document.getElementById('admin-subview-data');
+      const viewPwd = document.getElementById('admin-subview-password');
+
+      if(sub === 'data') {
+        tabData.className = "text-xs font-bold text-blue-600 border-b-2 border-blue-600 pb-1";
+        tabPwd.className = "text-xs font-medium text-slate-500 hover:text-slate-800 pb-1";
+        viewData.classList.remove('hidden');
+        viewPwd.classList.add('hidden');
+      } else {
+        tabPwd.className = "text-xs font-bold text-blue-600 border-b-2 border-blue-600 pb-1";
+        tabData.className = "text-xs font-medium text-slate-500 hover:text-slate-800 pb-1";
+        viewPwd.classList.remove('hidden');
+        viewData.classList.add('hidden');
+
+        // Check if admin
+        const adminForm = document.getElementById('pwd-change-admin-only');
+        const deniedMsg = document.getElementById('pwd-change-denied');
+        if(currentRole === 'admin') {
+          adminForm.classList.remove('hidden');
+          deniedMsg.classList.add('hidden');
+          document.getElementById('input-new-pwd-admin').value = passwords.admin;
+          document.getElementById('input-new-pwd-teacher').value = passwords.teacher;
+          document.getElementById('input-new-pwd-student').value = passwords.student;
+        } else {
+          adminForm.classList.add('hidden');
+          deniedMsg.classList.remove('hidden');
+        }
+      }
+    }
+
+    function saveNewPasswords() {
+      if(currentRole !== 'admin') return;
+
+      passwords.admin = document.getElementById('input-new-pwd-admin').value.trim();
+      passwords.teacher = document.getElementById('input-new-pwd-teacher').value.trim();
+      passwords.student = document.getElementById('input-new-pwd-student').value.trim();
+
+      localStorage.setItem('db_passwords_2026', JSON.stringify(passwords));
+      alert("비밀번호가 성공적으로 변경되었습니다.");
+      closeUploadModal();
+    }
+
+    // Excel Upload Handlers
+    function handleResultFileUpload(e) {
+      const file = e.target.files[0];
+      if(!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+        document.getElementById('status-upload-results').innerText = `✓ 파일업로드 성공 (${json.length}행 읽음)`;
+        alert("대교협 지원결과 데이터가 성공적으로 업로드 및 동기화되었습니다.");
+        closeUploadModal();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function handleScheduleFileUpload(e) {
+      const file = e.target.files[0];
+      if(!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        
+        if(workbook.Sheets['일정목록']) {
+          const json = XLSX.utils.sheet_to_json(workbook.Sheets['일정목록']);
+          dbSchedules = json.map(r => ({
+            date: r['날짜'],
+            univ: r['대학'],
+            type: r['구분'],
+            detail: r['비고'] || r['전형']
+          }));
+          localStorage.setItem('db_schedules_2026', JSON.stringify(dbSchedules));
+          document.getElementById('status-upload-schedules').innerText = `✓ 수시일정 목록 ${dbSchedules.length}건 동기화 완료`;
+          alert("수시 일정 데이터가 성공적으로 업데이트되었습니다.");
+          closeUploadModal();
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function initCharts() {
+      setTimeout(() => {
+        const ctx1 = document.getElementById('chart-type');
+        if(ctx1) {
+          new Chart(ctx1, {
+            type: 'doughnut',
+            data: {
+              labels: ['학생부교과', '학생부종합', '실기/실적', '논술'],
+              datasets: [{ data: [45, 35, 15, 5], backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+          });
+        }
+
+        const ctx2 = document.getElementById('chart-univ');
+        if(ctx2) {
+          new Chart(ctx2, {
+            type: 'bar',
+            data: {
+              labels: ['유원대', '용인대', '가천대', '연세대', '고려대', '성균관대'],
+              datasets: [{ label: '지원 건수', data: [24, 18, 15, 12, 10, 8], backgroundColor: '#6366f1' }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+          });
+        }
+      }, 100);
+    }
+
+    window.onload = function() {
+      selectLoginRole('student');
+    };
+  </script>
+</body>
+</html>
