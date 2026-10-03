@@ -270,11 +270,17 @@
             <i class="fa-solid fa-map-location-dot text-indigo-600"></i> [지역별 지원]
           </h3>
 
-          <div class="flex justify-between items-center mb-2">
+          <div class="flex justify-between items-center mb-2 gap-2">
             <p class="text-[11px] text-slate-400 truncate">
-              지도에서 지역을 클릭하면 상세 지원 내역을 확인할 수 있습니다.
+              지도에서 지역을 클릭하면 해당 지역의 상세 지원 내역을 확인할 수 있습니다.
             </p>
-            <span id="selectedRegionBadge" class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold whitespace-nowrap ml-2">전체 지역</span>
+            <div class="flex items-center gap-2 shrink-0">
+              <span id="selectedRegionBadge" class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold whitespace-nowrap">전체 지역</span>
+              <button type="button" onclick="selectRegion('전체')"
+                class="text-xs text-slate-600 hover:text-indigo-700 bg-slate-100 hover:bg-indigo-50 border border-slate-200 px-2.5 py-1 rounded-lg font-semibold transition">
+                지역 선택 초기화
+              </button>
+            </div>
           </div>
 
           <div class="student-map-content">
@@ -932,26 +938,24 @@
 
       dataset.forEach(item => {
         const region = getRegionOfItem(item);
-        const university = summarizeUniv(item.university);
-        if (!university) return;
-
         if (!regionMap.has(region)) {
-          regionMap.set(region, new Map());
-        }
-        const univMap = regionMap.get(region);
-
-        if (!univMap.has(university)) {
-          univMap.set(university, { apps: 0, pass: 0 });
+          regionMap.set(region, { apps: 0, step1Pass: 0, finalPass: 0 });
         }
 
-        const info = univMap.get(university);
+        const info = regionMap.get(region);
         info.apps++;
-        if (item.finalStep === '합격' || item.finalStep === '추합') info.pass++;
+        if (item.step1 === '합격' || item.step1 === '1차합격') info.step1Pass++;
+        if (item.finalStep === '합격' || item.finalStep === '추합') info.finalPass++;
       });
 
+      const order = ['서울','경기/인천','강원','충북','충남/대전','전북','전남/광주','대구/경북','부산/울산/경남','제주','기타/미분류'];
       const regions = Array.from(regionMap.keys()).sort((a, b) => {
-        const order = ['서울','경기/인천','강원','충북','충남/대전','전북','전남/광주','대구/경북','부산/울산/경남','제주','기타/미분류'];
-        return order.indexOf(a) - order.indexOf(b);
+        const ai = order.indexOf(a);
+        const bi = order.indexOf(b);
+        if (ai === -1 && bi === -1) return a.localeCompare(b, 'ko');
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
       });
 
       const container = document.getElementById('regionSummaryTable');
@@ -966,28 +970,24 @@
           <thead>
             <tr class="bg-slate-100 text-slate-600">
               <th class="p-2 text-left">지역권</th>
-              <th class="p-2 text-left">대학</th>
               <th class="p-2 text-center">지원</th>
-              <th class="p-2 text-center">합격</th>
+              <th class="p-2 text-center">1단계 합격</th>
+              <th class="p-2 text-center">최종 합격</th>
+              <th class="p-2 text-center">합격률</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
             ${regions.map(region => {
-              const univs = Array.from(regionMap.get(region).entries())
-                .sort((a,b) => b[1].apps - a[1].apps);
-
-              return univs.map(([univ, info], index) => `
-                <tr class="hover:bg-slate-50">
-                  ${index === 0 ? `<td rowspan="${univs.length}" class="p-2 align-top font-bold text-slate-700 border-r border-slate-100">${region}</td>` : ''}
-                  <td class="p-2">
-                    <button onclick="selectUniversity('${escapeJs(univ)}')" class="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold">
-                      ${escapeHtml(univ)}
-                    </button>
-                  </td>
+              const info = regionMap.get(region);
+              const rate = info.apps ? ((info.finalPass / info.apps) * 100).toFixed(1) : '0.0';
+              return `
+                <tr class="hover:bg-indigo-50 cursor-pointer transition" onclick="selectRegion('${escapeJs(region)}')">
+                  <td class="p-2 font-bold text-slate-700">${escapeHtml(region)}</td>
                   <td class="p-2 text-center">${info.apps}건</td>
-                  <td class="p-2 text-center text-emerald-600 font-bold">${info.pass}건</td>
-                </tr>
-              `).join('');
+                  <td class="p-2 text-center text-indigo-600 font-semibold">${info.step1Pass}건</td>
+                  <td class="p-2 text-center text-emerald-600 font-bold">${info.finalPass}건</td>
+                  <td class="p-2 text-center font-semibold">${rate}%</td>
+                </tr>`;
             }).join('')}
           </tbody>
         </table>`;
@@ -1091,21 +1091,18 @@
       title.innerHTML = `<i class="fa-solid fa-table-list text-indigo-600"></i> 상세 지원 내역`;
       hint.innerText = filterLabel ? `선택 조건: ${filterLabel}` : '상세 지원 내역';
 
-      // 학생 개인정보 및 요청하지 않은 날짜 정보는 노출하지 않습니다.
+      // 상세 지원 내역에는 요청된 항목만 표시합니다.
       thead.innerHTML = `
         <tr class="bg-slate-100 border-b border-slate-200 text-slate-700">
-          <th class="py-2.5 px-3 text-center">대학명</th>
           <th class="py-2.5 px-3 text-center">세부유형</th>
           <th class="py-2.5 px-3 text-center">모집단위</th>
-          <th class="py-2.5 px-3 text-center">모집인원</th>
-          <th class="py-2.5 px-3 text-center">최저학력기준</th>
           <th class="py-2.5 px-3 text-center">1단계</th>
           <th class="py-2.5 px-3 text-center">최종단계</th>
           <th class="py-2.5 px-3 text-center">불합격사유</th>
         </tr>`;
 
       if (dataset.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">조건에 맞는 지원 상세 내역이 없습니다.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">조건에 맞는 지원 상세 내역이 없습니다.</td></tr>`;
         return;
       }
 
@@ -1114,11 +1111,8 @@
         tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
 
         tr.innerHTML = `
-          <td class="py-2.5 px-3 text-center font-bold text-slate-800">${escapeHtml(summarizeUniv(app.university) || '-')}</td>
           <td class="py-2.5 px-3 text-center">${escapeHtml(summarizeDetailType(app.detailType) || '-')}</td>
           <td class="py-2.5 px-3 text-center">${escapeHtml(app.dept || '-')}</td>
-          <td class="py-2.5 px-3 text-center">${escapeHtml(app.recruitCount || '-')}</td>
-          <td class="py-2.5 px-3 text-center">${escapeHtml(app.minExam || '-')}</td>
           <td class="py-2.5 px-3 text-center">${renderStatusBadge(app.step1)}</td>
           <td class="py-2.5 px-3 text-center">${renderStatusBadge(app.finalStep)}</td>
           <td class="py-2.5 px-3 text-center">${escapeHtml(app.failReason || '-')}</td>
