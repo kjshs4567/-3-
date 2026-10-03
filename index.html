@@ -121,6 +121,56 @@
       }
     }
 
+  
+    /* ================================================================
+       교사용 학급 관리 화면
+       ================================================================ */
+    .teacher-mode-card { transition: all .18s ease; cursor: pointer; }
+    .teacher-mode-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(15,23,42,.08); }
+    .teacher-tabs button.active { background:#4f46e5; color:#fff; box-shadow:0 3px 8px rgba(79,70,229,.22); }
+    .student-summary-card { border:1px solid #dbe3ef; border-radius:14px; background:#fff; box-shadow:0 3px 12px rgba(15,23,42,.05); overflow:hidden; }
+    .student-summary-card.locked { background:#f8fafc; }
+    .application-edit-row { display:grid; grid-template-columns: 30px minmax(150px,1.2fr) minmax(120px,1fr) minmax(130px,1fr) 90px 90px minmax(120px,1fr) 34px; gap:6px; align-items:center; }
+    .application-edit-row input, .application-edit-row select { min-width:0; }
+    .summary-field { border:1px solid #dbe3ef; border-radius:7px; padding:6px 7px; font-size:11px; background:#fff; outline:none; width:100%; }
+    .summary-field:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.10); }
+    .summary-field:disabled { background:#eef2f7; color:#94a3b8; cursor:not-allowed; }
+    .summary-card-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .consult-layout { display:grid; grid-template-columns:minmax(320px,.9fr) minmax(480px,1.4fr); gap:16px; }
+    .consult-editor { min-height:280px; border:1px solid #cbd5e1; border-radius:8px; padding:12px; outline:none; background:#fff; overflow:auto; }
+    .consult-editor table { border-collapse:collapse; width:auto; margin:8px 0; }
+    .consult-editor td, .consult-editor th { border:1px solid #94a3b8; min-width:70px; min-height:28px; padding:6px; resize:both; overflow:auto; vertical-align:top; }
+    .calendar-layout { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(320px,.75fr); gap:16px; }
+    .calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); border-top:1px solid #e2e8f0; border-left:1px solid #e2e8f0; }
+    .calendar-head { background:#f8fafc; font-weight:700; font-size:11px; text-align:center; padding:8px 4px; border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; }
+    .calendar-day { min-height:92px; padding:6px; border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; background:#fff; }
+    .calendar-day.muted { background:#f8fafc; color:#cbd5e1; }
+    .calendar-day.today { box-shadow:inset 0 0 0 2px #6366f1; }
+    .calendar-event { display:block; width:100%; margin-top:4px; border:0; border-radius:6px; padding:4px 5px; text-align:left; font-size:10px; background:#eef2ff; color:#3730a3; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .calendar-event.final { background:#ecfdf5; color:#047857; }
+    .calendar-event.interview { background:#fff7ed; color:#c2410c; }
+    .consult-date-row { border:1px solid #e2e8f0; border-radius:9px; overflow:hidden; margin-bottom:8px; background:#fff; }
+    .consult-date-head { display:flex; align-items:center; justify-content:space-between; padding:9px 11px; cursor:pointer; background:#f8fafc; }
+    .consult-date-body { padding:10px; }
+    .field-label { display:block; font-size:9px; color:#94a3b8; margin-bottom:2px; }
+    .print-only-title { display:none; }
+    @media (max-width: 1100px) {
+      .summary-card-grid, .consult-layout, .calendar-layout { grid-template-columns:1fr; }
+      .application-edit-row { grid-template-columns:30px repeat(2,minmax(120px,1fr)) 90px 90px minmax(120px,1fr) 34px; }
+      .application-edit-row .app-dept { grid-column:span 2; }
+    }
+    @media print {
+      body { background:#fff !important; }
+      body * { visibility:hidden !important; }
+      #teacherManagementSection, #teacherManagementSection * { visibility:visible !important; }
+      #teacherManagementSection { position:absolute; left:0; top:0; width:100%; }
+      .no-print { display:none !important; }
+      .print-only-title { display:block; }
+      .calendar-day { min-height:110px; }
+      .calendar-layout { grid-template-columns:1fr; }
+      .calendar-side-panel { display:none; }
+    }
+
   </style>
 </head>
 <body class="text-slate-800 antialiased bg-slate-100 min-h-screen flex flex-col">
@@ -359,7 +409,117 @@
     <!-- ================================================================= -->
     <!-- 2. TEACHER / ADMIN VIEW (교사/관리자용 학급별 데이터 관리 표) -->
     <!-- ================================================================= -->
-    <div id="editorViewSection" class="space-y-6 hidden">
+    
+    <!-- ================================================================ -->
+    <!-- TEACHER MODE CHOOSER -->
+    <!-- ================================================================ -->
+    <div id="teacherModeChooser" class="hidden space-y-5">
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div class="text-center mb-6">
+          <p class="text-xs font-bold text-indigo-600 mb-1">교사용 진학 관리</p>
+          <h2 class="text-xl font-extrabold text-slate-800">원하는 관리 모드를 선택하세요.</h2>
+          <p class="text-xs text-slate-400 mt-2">기존 전체 조회 기능 또는 학급 관리 기능으로 이동할 수 있습니다.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-4xl mx-auto">
+          <button onclick="enterTeacherMode('overall')" class="teacher-mode-card text-left border border-indigo-100 bg-indigo-50/50 rounded-2xl p-6">
+            <div class="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center mb-4"><i class="fa-solid fa-table-list text-xl"></i></div>
+            <h3 class="font-extrabold text-slate-800 text-lg">전체 조회</h3>
+            <p class="text-xs text-slate-500 mt-2 leading-5">기존 교사용 전체 조회, 학급별 데이터 관리, 엑셀 업로드·다운로드 기능을 그대로 이용합니다.</p>
+          </button>
+          <button onclick="enterTeacherMode('class')" class="teacher-mode-card text-left border border-emerald-100 bg-emerald-50/50 rounded-2xl p-6">
+            <div class="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center mb-4"><i class="fa-solid fa-users-gear text-xl"></i></div>
+            <h3 class="font-extrabold text-slate-800 text-lg">학급 관리</h3>
+            <p class="text-xs text-slate-500 mt-2 leading-5">한눈 요약, 학생별 상담 기록, 월별 일정 달력을 한 화면에서 관리합니다.</p>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- TEACHER CLASS MANAGEMENT -->
+    <!-- ================================================================ -->
+    <div id="teacherManagementSection" class="space-y-5 hidden">
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <button onclick="showTeacherModeChooser()" class="no-print text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-arrow-left mr-1"></i>모드 선택</button>
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-bold text-slate-600">학급</label>
+            <select id="manageClassSelect" onchange="renderClassManagement()" class="border border-slate-300 rounded-lg px-3 py-2 text-xs font-bold bg-white">
+              <option value="3학년 1반">3학년 1반</option><option value="3학년 2반">3학년 2반</option><option value="3학년 3반">3학년 3반</option><option value="3학년 4반">3학년 4반</option><option value="3학년 5반" selected>3학년 5반</option><option value="3학년 6반">3학년 6반</option>
+            </select>
+          </div>
+          <span id="manageStudentCount" class="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-bold">학생 0명</span>
+        </div>
+        <div class="teacher-tabs flex items-center gap-1 bg-slate-100 p-1 rounded-xl no-print">
+          <button id="tabSummary" onclick="setClassManageMode('summary')" class="active text-xs font-bold px-4 py-2 rounded-lg">한눈 요약</button>
+          <button id="tabConsult" onclick="setClassManageMode('consult')" class="text-xs font-bold px-4 py-2 rounded-lg text-slate-600">상담 기록</button>
+          <button id="tabCalendar" onclick="setClassManageMode('calendar')" class="text-xs font-bold px-4 py-2 rounded-lg text-slate-600">일정 달력</button>
+        </div>
+      </div>
+
+      <div id="classSummaryMode" class="space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="font-extrabold text-slate-800">학생별 한눈 요약</h3>
+            <p class="text-[11px] text-slate-400 mt-1">학생 이름을 누르면 상담 기록 화면으로 이동합니다. 잠금 상태에서는 수정할 수 없습니다.</p>
+          </div>
+          <button id="globalLockButton" onclick="toggleAllStudentLocks()" class="no-print text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-lock mr-1"></i>전체 잠금</button>
+        </div>
+        <div id="studentSummaryGrid" class="summary-card-grid"></div>
+      </div>
+
+      <div id="classConsultMode" class="hidden space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="font-extrabold text-slate-800">상담 기록</h3>
+            <p class="text-[11px] text-slate-400 mt-1">상담 대상 학생을 선택하면 왼쪽에 학생 카드, 오른쪽에 날짜별 상담 기록이 표시됩니다.</p>
+          </div>
+          <div class="flex items-center gap-2 no-print">
+            <label class="text-xs font-bold text-slate-600">학생 선택</label>
+            <select id="consultStudentSelect" onchange="selectConsultStudent(this.value)" class="border border-slate-300 rounded-lg px-3 py-2 text-xs font-bold bg-white"></select>
+          </div>
+        </div>
+        <div class="consult-layout">
+          <div id="consultStudentCard"></div>
+          <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div><h4 class="font-extrabold text-slate-800">상담 목록</h4><p class="text-[11px] text-slate-400">날짜별 기록을 추가하고 펼쳐서 내용을 작성할 수 있습니다.</p></div>
+              <button onclick="addConsultationRecord()" class="no-print text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-2 rounded-lg"><i class="fa-solid fa-plus mr-1"></i>추가하기</button>
+            </div>
+            <div id="consultationList"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="classCalendarMode" class="hidden space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div><h3 class="font-extrabold text-slate-800">일정 달력</h3><p class="text-[11px] text-slate-400 mt-1">지원 일정과 최종 발표일을 월별로 확인하고 메모를 남길 수 있습니다.</p></div>
+          <div class="flex items-center gap-2 no-print">
+            <button onclick="changeCalendarMonth(-1)" class="border border-slate-300 bg-white px-2.5 py-1.5 rounded-lg text-xs">‹</button>
+            <strong id="calendarMonthLabel" class="text-sm min-w-[100px] text-center"></strong>
+            <button onclick="changeCalendarMonth(1)" class="border border-slate-300 bg-white px-2.5 py-1.5 rounded-lg text-xs">›</button>
+            <button onclick="goCalendarToday()" class="text-xs bg-slate-100 px-3 py-1.5 rounded-lg font-bold">오늘</button>
+            <button onclick="window.print()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold"><i class="fa-solid fa-print mr-1"></i>인쇄하기</button>
+          </div>
+        </div>
+        <div class="calendar-layout">
+          <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+            <div class="print-only-title font-extrabold text-lg mb-3">학생 주요 일정</div>
+            <div id="calendarGrid" class="calendar-grid"></div>
+          </div>
+          <div class="calendar-side-panel bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+            <div class="flex items-center justify-between mb-3"><h4 id="calendarSelectedDateTitle" class="font-extrabold text-slate-800">일자별 일정</h4><span class="text-[10px] text-slate-400">클릭하여 메모</span></div>
+            <div id="calendarDayList" class="space-y-2"></div>
+            <div id="calendarMemoPanel" class="hidden mt-4 pt-4 border-t border-slate-200">
+              <div class="flex items-center justify-between mb-2"><strong id="calendarMemoTitle" class="text-xs text-slate-700"></strong><button onclick="saveCalendarMemo()" class="no-print text-[11px] bg-indigo-600 text-white px-2.5 py-1.5 rounded-lg font-bold">메모 저장</button></div>
+              <textarea id="calendarMemoInput" rows="5" class="w-full border border-slate-300 rounded-lg p-2 text-xs resize-y" placeholder="이 일정에 대한 메모를 입력하세요."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+<div id="teacherOverallSection" class="space-y-6 hidden">
       
       <!-- Top Control Bar -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
@@ -618,6 +778,9 @@
         const searchInput = document.getElementById('univSearchInput');
         if (searchInput) searchInput.value = '';
         renderStudentDashboard();
+      } else if (currentRole === 'teacher') {
+        renderEditorTable();
+        if (!document.getElementById('teacherManagementSection').classList.contains('hidden')) renderClassManagement();
       } else {
         renderEditorTable();
       }
@@ -641,14 +804,22 @@
           roleBadge.innerText = '학생용 (통계/검색)';
           roleBadge.className = 'text-xs px-2.5 py-1 rounded-full font-bold bg-slate-600 text-white';
           document.getElementById('studentViewSection').classList.remove('hidden');
-          document.getElementById('editorViewSection').classList.add('hidden');
+          document.getElementById('teacherOverallSection').classList.add('hidden');
           renderStudentDashboard();
         } else {
           roleBadge.innerText = (role === 'teacher') ? '담임교사용' : '최고관리자용';
           roleBadge.className = (role === 'teacher') ? 'text-xs px-2.5 py-1 rounded-full font-bold bg-indigo-600 text-white' : 'text-xs px-2.5 py-1 rounded-full font-bold bg-amber-600 text-white';
           document.getElementById('studentViewSection').classList.add('hidden');
-          document.getElementById('editorViewSection').classList.remove('hidden');
-          renderEditorTable();
+          if (role === 'teacher') {
+            document.getElementById('teacherOverallSection').classList.add('hidden');
+            document.getElementById('teacherManagementSection').classList.add('hidden');
+            document.getElementById('teacherModeChooser').classList.remove('hidden');
+          } else {
+            document.getElementById('teacherModeChooser').classList.add('hidden');
+            document.getElementById('teacherManagementSection').classList.add('hidden');
+            document.getElementById('teacherOverallSection').classList.remove('hidden');
+            renderEditorTable();
+          }
         }
 
         document.getElementById('btnYearManage').className = (role === 'admin') ? 'text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-2.5 py-1.5 rounded transition' : 'hidden';
@@ -664,6 +835,9 @@
       document.getElementById('loginPassword').value = '';
       document.getElementById('mainApp').classList.add('hidden');
       document.getElementById('sessionBar').classList.add('hidden');
+      document.getElementById('teacherModeChooser').classList.add('hidden');
+      document.getElementById('teacherManagementSection').classList.add('hidden');
+      document.getElementById('teacherOverallSection').classList.add('hidden');
       document.getElementById('loginView').classList.remove('hidden');
     }
 
@@ -1275,6 +1449,320 @@
     }
 
     // Modal Control & Record Management
+
+    // ================================================================
+    // TEACHER CLASS MANAGEMENT LOGIC
+    // ================================================================
+    let classManageMode = 'summary';
+    let consultStudentKey = '';
+    let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let selectedCalendarEventKey = '';
+
+    const teacherLockStoreKey = 'jinsang_teacher_student_locks_v1';
+    const teacherConsultStoreKey = 'jinsang_teacher_consultations_v1';
+    const teacherCalendarMemoKey = 'jinsang_teacher_calendar_memos_v1';
+
+    function readLocalJson(key, fallback) {
+      try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
+      catch (e) { return fallback; }
+    }
+    function writeLocalJson(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    }
+    function studentKeyOf(student) {
+      return `${normalizeClassName(student.gradeClass)}_${student.num}_${student.name}`;
+    }
+    function getTeacherStudents() {
+      const cls = document.getElementById('manageClassSelect')?.value || '3학년 5반';
+      const dataset = getFilteredData().filter(item => normalizeClassName(item.gradeClass) === normalizeClassName(cls));
+      const map = new Map();
+      dataset.forEach(item => {
+        const key = `${item.num}_${item.name}`;
+        if (!map.has(key)) map.set(key, { num:item.num, name:item.name, gradeClass:item.gradeClass, applications:[] });
+        map.get(key).applications.push(item);
+      });
+      return Array.from(map.values()).sort((a,b) => Number(a.num)-Number(b.num));
+    }
+    function getStudentByKey(key) {
+      return getTeacherStudents().find(s => studentKeyOf(s) === key) || null;
+    }
+    function getLockMap() { return readLocalJson(teacherLockStoreKey, {}); }
+    function isStudentLocked(key) { return !!getLockMap()[key]; }
+    function setStudentLocked(key, locked) {
+      const locks = getLockMap();
+      if (locked) locks[key] = true; else delete locks[key];
+      writeLocalJson(teacherLockStoreKey, locks);
+    }
+    function areAllStudentsLocked() {
+      const students = getTeacherStudents();
+      return students.length > 0 && students.every(s => isStudentLocked(studentKeyOf(s)));
+    }
+    function toggleAllStudentLocks() {
+      const shouldLock = !areAllStudentsLocked();
+      const locks = getLockMap();
+      getTeacherStudents().forEach(s => {
+        const key = studentKeyOf(s);
+        if (shouldLock) locks[key] = true; else delete locks[key];
+      });
+      writeLocalJson(teacherLockStoreKey, locks);
+      renderClassManagement();
+    }
+    function toggleStudentLock(key) {
+      setStudentLocked(key, !isStudentLocked(key));
+      renderClassManagement();
+    }
+    function showTeacherModeChooser() {
+      document.getElementById('teacherModeChooser').classList.remove('hidden');
+      document.getElementById('teacherManagementSection').classList.add('hidden');
+      document.getElementById('teacherOverallSection').classList.add('hidden');
+    }
+    function enterTeacherMode(mode) {
+      document.getElementById('teacherModeChooser').classList.add('hidden');
+      if (mode === 'overall') {
+        document.getElementById('teacherManagementSection').classList.add('hidden');
+        document.getElementById('teacherOverallSection').classList.remove('hidden');
+        renderEditorTable();
+      } else {
+        document.getElementById('teacherOverallSection').classList.add('hidden');
+        document.getElementById('teacherManagementSection').classList.remove('hidden');
+        classManageMode = 'summary';
+        document.getElementById('tabSummary').classList.add('active');
+        document.getElementById('tabConsult').classList.remove('active');
+        document.getElementById('tabCalendar').classList.remove('active');
+        renderClassManagement();
+      }
+    }
+    function setClassManageMode(mode) {
+      classManageMode = mode;
+      document.getElementById('tabSummary').classList.toggle('active', mode === 'summary');
+      document.getElementById('tabConsult').classList.toggle('active', mode === 'consult');
+      document.getElementById('tabCalendar').classList.toggle('active', mode === 'calendar');
+      document.getElementById('classSummaryMode').classList.toggle('hidden', mode !== 'summary');
+      document.getElementById('classConsultMode').classList.toggle('hidden', mode !== 'consult');
+      document.getElementById('classCalendarMode').classList.toggle('hidden', mode !== 'calendar');
+      if (mode === 'summary') renderSummaryCards();
+      if (mode === 'consult') renderConsultMode();
+      if (mode === 'calendar') { const ev=getCalendarEvents(); if (ev.length) calendarCursor=new Date(ev[0].date.getFullYear(),ev[0].date.getMonth(),1); renderCalendar(); }
+    }
+    function renderClassManagement() {
+      document.getElementById('manageStudentCount').innerText = `학생 ${getTeacherStudents().length}명`;
+      if (classManageMode === 'summary') renderSummaryCards();
+      if (classManageMode === 'consult') renderConsultMode();
+      if (classManageMode === 'calendar') renderCalendar();
+    }
+    function updateApplicationField(id, field, value) {
+      const target = rawDatabase.find(r => r.id === Number(id));
+      if (!target) return;
+      const key = studentKeyOf({ num:target.num, name:target.name, gradeClass:target.gradeClass });
+      if (isStudentLocked(key)) return;
+      target[field] = value;
+      renderSummaryCards();
+    }
+    function addApplicationForStudent(studentKey) {
+      const student = getStudentByKey(studentKey);
+      if (!student || isStudentLocked(studentKey)) return;
+      const newId = Date.now() + Math.floor(Math.random()*1000);
+      rawDatabase.push({ id:newId, year:document.getElementById('globalYearSelect').value === '전체' ? (years[0] || '') : document.getElementById('globalYearSelect').value, gradeClass:student.gradeClass, num:Number(student.num), name:student.name, university:'', detailType:'', dept:'', recruitCount:'', region:'', minExam:'', interviewDate:'', step1:'', finalDate:'', finalStep:'', failReason:'' });
+      renderSummaryCards();
+    }
+    function deleteApplicationFromStudent(id) {
+      const target = rawDatabase.find(r => r.id === Number(id));
+      if (!target) return;
+      const key = studentKeyOf({ num:target.num, name:target.name, gradeClass:target.gradeClass });
+      if (isStudentLocked(key)) return;
+      if (!confirm('이 지원 내역을 삭제할까요?')) return;
+      rawDatabase = rawDatabase.filter(r => r.id !== Number(id));
+      renderSummaryCards();
+    }
+    function editStudentNameFromCard(key) {
+      const student = getStudentByKey(key);
+      if (!student || isStudentLocked(key)) return;
+      const newName = prompt('학생 이름을 수정하세요.', student.name);
+      if (newName === null || !newName.trim() || newName.trim() === student.name) return;
+      rawDatabase.forEach(r => {
+        if (studentKeyOf({num:r.num,name:r.name,gradeClass:r.gradeClass}) === key) r.name = newName.trim();
+      });
+      renderClassManagement();
+    }
+    function renderSummaryCards() {
+      const container = document.getElementById('studentSummaryGrid');
+      if (!container) return;
+      const students = getTeacherStudents();
+      document.getElementById('manageStudentCount').innerText = `학생 ${students.length}명`;
+      document.getElementById('globalLockButton').innerHTML = areAllStudentsLocked() ? '<i class="fa-solid fa-lock-open mr-1"></i>전체 잠금 해제' : '<i class="fa-solid fa-lock mr-1"></i>전체 잠금';
+      if (!students.length) { container.innerHTML = '<div class="col-span-full py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">선택 학급에 등록된 학생이 없습니다.</div>'; return; }
+      container.innerHTML = students.map(student => {
+        const key = studentKeyOf(student), locked = isStudentLocked(key);
+        return `<article class="student-summary-card ${locked ? 'locked' : ''}">
+          <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-[11px] bg-indigo-100 text-indigo-700 rounded-full px-2 py-1 font-extrabold">${escapeHtml(student.num)}</span>
+              <button onclick="selectConsultStudent('${escapeJs(key)}')" class="font-extrabold text-slate-800 hover:text-indigo-600 truncate">${escapeHtml(student.name)}</button>
+              <span class="text-[10px] text-slate-400">${escapeHtml(normalizeClassName(student.gradeClass))}</span>
+            </div>
+            <div class="flex items-center gap-1 no-print">
+              <button onclick="editStudentNameFromCard('${escapeJs(key)}')" class="text-[10px] px-2 py-1 rounded bg-white border border-slate-200 ${locked?'opacity-40 cursor-not-allowed':''}" ${locked?'disabled':''}>이름 수정</button>
+              <button onclick="toggleStudentLock('${escapeJs(key)}')" class="text-[10px] px-2 py-1 rounded ${locked?'bg-amber-100 text-amber-700':'bg-slate-200 text-slate-700'} font-bold"><i class="fa-solid ${locked?'fa-lock':'fa-lock-open'} mr-1"></i>${locked?'잠금':'개별 잠금'}</button>
+            </div>
+          </div>
+          <div class="p-3 space-y-2">
+            <div class="application-edit-row text-[10px] font-bold text-slate-400 px-1"><span>연번</span><span>대학명</span><span>전형명</span><span>학과</span><span>1단계</span><span>최종단계</span><span>불합격사유</span><span></span></div>
+            ${student.applications.map((app,idx)=>`<div class="application-edit-row">
+              <span class="text-[10px] text-center font-bold text-slate-500">${idx+1}</span>
+              <input class="summary-field" value="${escapeHtml(summarizeUniv(app.university))}" onchange="updateApplicationField(${app.id},'university',this.value)" ${locked?'disabled':''} placeholder="대학명">
+              <input class="summary-field" value="${escapeHtml(summarizeDetailType(app.detailType))}" onchange="updateApplicationField(${app.id},'detailType',this.value)" ${locked?'disabled':''} placeholder="전형명">
+              <input class="summary-field app-dept" value="${escapeHtml(app.dept||'')}" onchange="updateApplicationField(${app.id},'dept',this.value)" ${locked?'disabled':''} placeholder="모집단위/학과">
+              <select class="summary-field" onchange="updateApplicationField(${app.id},'step1',this.value)" ${locked?'disabled':''}><option value="" ${!app.step1?'selected':''}>-</option><option value="합격" ${app.step1==='합격'?'selected':''}>합격</option><option value="1차합격" ${app.step1==='1차합격'?'selected':''}>1차합격</option><option value="1차불합" ${app.step1==='1차불합'?'selected':''}>1차불합</option></select>
+              <select class="summary-field" onchange="updateApplicationField(${app.id},'finalStep',this.value)" ${locked?'disabled':''}><option value="" ${!app.finalStep?'selected':''}>-</option><option value="합격" ${app.finalStep==='합격'?'selected':''}>합격</option><option value="추합" ${app.finalStep==='추합'?'selected':''}>추합</option><option value="불합격" ${app.finalStep==='불합격'?'selected':''}>불합격</option></select>
+              <input class="summary-field" value="${escapeHtml(app.failReason||'')}" onchange="updateApplicationField(${app.id},'failReason',this.value)" ${locked?'disabled':''} placeholder="불합격 사유">
+              <button onclick="deleteApplicationFromStudent(${app.id})" class="no-print text-rose-500 hover:bg-rose-50 rounded p-1 ${locked?'opacity-30 cursor-not-allowed':''}" ${locked?'disabled':''} title="삭제"><i class="fa-solid fa-trash"></i></button>
+            </div>`).join('')}
+            <button onclick="addApplicationForStudent('${escapeJs(key)}')" class="no-print w-full border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-[11px] font-bold rounded-lg py-2 ${locked?'opacity-40 cursor-not-allowed':''}" ${locked?'disabled':''}><i class="fa-solid fa-plus mr-1"></i>지원 내역 추가</button>
+          </div>
+        </article>`;
+      }).join('');
+    }
+
+    function selectConsultStudent(key) {
+      const student = getStudentByKey(key);
+      if (!student) return;
+      consultStudentKey = key;
+      classManageMode = 'consult';
+      document.getElementById('tabSummary').classList.remove('active');
+      document.getElementById('tabConsult').classList.add('active');
+      document.getElementById('tabCalendar').classList.remove('active');
+      document.getElementById('classSummaryMode').classList.add('hidden');
+      document.getElementById('classCalendarMode').classList.add('hidden');
+      document.getElementById('classConsultMode').classList.remove('hidden');
+      renderConsultMode();
+    }
+    function renderConsultMode() {
+      const students = getTeacherStudents();
+      const select = document.getElementById('consultStudentSelect');
+      if (!students.length) { document.getElementById('consultStudentCard').innerHTML=''; document.getElementById('consultationList').innerHTML=''; return; }
+      if (!consultStudentKey || !getStudentByKey(consultStudentKey)) consultStudentKey = studentKeyOf(students[0]);
+      select.innerHTML = students.map(s => `<option value="${escapeHtml(studentKeyOf(s))}" ${studentKeyOf(s)===consultStudentKey?'selected':''}>${escapeHtml(s.num)}번 ${escapeHtml(s.name)}</option>`).join('');
+      renderConsultStudentCard();
+      renderConsultations();
+    }
+    function renderConsultStudentCard() {
+      const student = getStudentByKey(consultStudentKey);
+      if (!student) return;
+      const locked = true;
+      document.getElementById('consultStudentCard').innerHTML = `<article class="student-summary-card locked">
+        <div class="px-4 py-3 bg-indigo-50 border-b border-indigo-100"><div class="flex items-center gap-2"><span class="bg-indigo-600 text-white rounded-full px-2 py-1 text-[11px] font-extrabold">${escapeHtml(student.num)}</span><h4 class="font-extrabold text-slate-800">${escapeHtml(student.name)}</h4></div><p class="text-[10px] text-slate-400 mt-1">상담 화면에서는 전체 학생 카드가 잠겨 있습니다.</p></div>
+        <div class="p-3 space-y-2">${student.applications.map((app,i)=>`<div class="border border-slate-200 rounded-lg p-3 bg-white"><div class="text-[10px] font-bold text-slate-400 mb-2">지원 ${i+1}</div><div class="grid grid-cols-2 gap-2"><div><span class="field-label">대학명</span><div class="text-xs font-bold text-slate-800">${escapeHtml(summarizeUniv(app.university)||'-')}</div></div><div><span class="field-label">전형명</span><div class="text-xs text-slate-700">${escapeHtml(summarizeDetailType(app.detailType)||'-')}</div></div><div class="col-span-2"><span class="field-label">학과</span><div class="text-xs text-slate-700">${escapeHtml(app.dept||'-')}</div></div><div><span class="field-label">1단계</span><div class="text-xs">${escapeHtml(app.step1||'-')}</div></div><div><span class="field-label">최종단계</span><div class="text-xs">${escapeHtml(app.finalStep||'-')}</div></div></div></div>`).join('')}</div>
+      </article>`;
+    }
+    function addConsultationRecord() {
+      if (!consultStudentKey) return;
+      const all = readLocalJson(teacherConsultStoreKey, {});
+      if (!all[consultStudentKey]) all[consultStudentKey] = [];
+      const date = new Date().toISOString().slice(0,10);
+      all[consultStudentKey].unshift({ id:Date.now(), date, open:true, html:'' });
+      writeLocalJson(teacherConsultStoreKey, all);
+      renderConsultations();
+    }
+    function updateConsultationHtml(id, html) {
+      const all = readLocalJson(teacherConsultStoreKey, {});
+      const list = all[consultStudentKey] || [];
+      const rec = list.find(x => x.id === Number(id));
+      if (rec) { rec.html = html; writeLocalJson(teacherConsultStoreKey, all); }
+    }
+    function toggleConsultation(id) {
+      const all = readLocalJson(teacherConsultStoreKey, {}), list = all[consultStudentKey] || [], rec = list.find(x=>x.id===Number(id));
+      if (rec) { rec.open = !rec.open; writeLocalJson(teacherConsultStoreKey, all); renderConsultations(); }
+    }
+    function deleteConsultation(id) {
+      const all = readLocalJson(teacherConsultStoreKey, {}); all[consultStudentKey] = (all[consultStudentKey]||[]).filter(x=>x.id!==Number(id)); writeLocalJson(teacherConsultStoreKey,all); renderConsultations();
+    }
+    function setConsultFontSize(size) { document.execCommand('fontSize', false, String(size)); }
+    function setConsultColor(color) { document.execCommand('foreColor', false, color); }
+    function insertConsultTable() {
+      const rows = Math.max(1, Number(prompt('행 수를 입력하세요.', '2')) || 2);
+      const cols = Math.max(1, Number(prompt('열 수를 입력하세요.', '3')) || 3);
+      let html = '<table><tbody>';
+      for (let r=0;r<rows;r++) { html += '<tr>'; for(let c=0;c<cols;c++) html += '<td>&nbsp;</td>'; html += '</tr>'; }
+      html += '</tbody></table><p><br></p>';
+      document.execCommand('insertHTML', false, html);
+    }
+    function bindConsultEditorShortcuts() {
+      document.querySelectorAll('.consult-editor').forEach(el => {
+        el.addEventListener('keydown', e => {
+          if (e.ctrlKey && e.key.toLowerCase() === 'b') { e.preventDefault(); document.execCommand('bold'); }
+          if (e.ctrlKey && e.key.toLowerCase() === 'u') { e.preventDefault(); document.execCommand('underline'); }
+          if (e.ctrlKey && (e.key === '`' || e.key === '~')) { e.preventDefault(); document.execCommand('strikeThrough'); }
+        });
+      });
+    }
+    function renderConsultations() {
+      const all = readLocalJson(teacherConsultStoreKey, {}), list = all[consultStudentKey] || [], container = document.getElementById('consultationList');
+      if (!list.length) { container.innerHTML = '<div class="py-10 text-center text-slate-400 text-xs border border-dashed border-slate-300 rounded-lg">상담 기록이 없습니다. 오른쪽 위의 추가하기를 눌러 기록을 시작하세요.</div>'; return; }
+      container.innerHTML = list.map(rec => `<div class="consult-date-row">
+        <div class="consult-date-head" onclick="toggleConsultation(${rec.id})"><strong class="text-xs text-slate-700"><i class="fa-regular fa-calendar mr-1 text-indigo-500"></i>${escapeHtml(rec.date)}</strong><div class="flex items-center gap-2"><button onclick="event.stopPropagation();deleteConsultation(${rec.id})" class="no-print text-[10px] text-rose-500">삭제</button><i class="fa-solid ${rec.open?'fa-chevron-up':'fa-chevron-down'} text-slate-400 text-xs"></i></div></div>
+        ${rec.open ? `<div class="consult-date-body"><div class="consult-toolbar no-print flex flex-wrap items-center gap-1 mb-2"><button onclick="document.execCommand('bold')" class="px-2 py-1 text-xs border rounded bg-white font-bold">B</button><button onclick="document.execCommand('underline')" class="px-2 py-1 text-xs border rounded underline">U</button><button onclick="document.execCommand('strikeThrough')" class="px-2 py-1 text-xs border rounded line-through">S</button><select onchange="setConsultFontSize(this.value)" class="text-xs border rounded px-1 py-1"><option value="3">글자 크기</option><option value="2">작게</option><option value="3">보통</option><option value="4">크게</option><option value="5">매우 크게</option></select><input type="color" onchange="setConsultColor(this.value)" title="글자 색" class="w-7 h-7 border rounded p-0.5"><button onclick="insertConsultTable()" class="px-2 py-1 text-xs border rounded bg-white"><i class="fa-solid fa-table"></i> 표</button></div><div class="consult-editor" contenteditable="true" data-id="${rec.id}">${rec.html || ''}</div></div>` : ''}
+      </div>`).join('');
+      bindConsultEditorShortcuts();
+      container.querySelectorAll('.consult-editor').forEach(el => el.addEventListener('input', () => updateConsultationHtml(el.dataset.id, el.innerHTML)));
+    }
+
+    function parseScheduleDate(raw, yearHint) {
+      if (!raw) return null;
+      let s = String(raw).trim().replace(/[.]/g,'-').replace(/\//g,'-');
+      const y = String(yearHint || new Date().getFullYear()).replace(/[^0-9]/g,'');
+      let m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m) return new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+      m = s.match(/(?:'?(\d{2})-)?(\d{1,2})-(\d{1,2})/);
+      if (m) { let yy=m[1]?Number(m[1]):Number(y.slice(-2)); yy=yy<100?2000+yy:yy; return new Date(yy,Number(m[2])-1,Number(m[3])); }
+      m = s.match(/(\d{1,2})-(\d{1,2})/);
+      if (m) return new Date(Number(y),Number(m[1])-1,Number(m[2]));
+      return null;
+    }
+    function getCalendarEvents() {
+      const events=[];
+      getTeacherStudents().forEach(student => student.applications.forEach(app => {
+        const base={studentKey:studentKeyOf(student),studentName:student.name,num:student.num,university:summarizeUniv(app.university),id:app.id};
+        const d1=parseScheduleDate(app.interviewDate,app.year); if(d1 && !isNaN(d1)) events.push({...base,date:d1,type:'interview',label:'면접/논술',raw:app.interviewDate});
+        const d2=parseScheduleDate(app.finalDate,app.year); if(d2 && !isNaN(d2)) events.push({...base,date:d2,type:'final',label:'최종발표',raw:app.finalDate});
+      }));
+      return events;
+    }
+    function dateKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+    function changeCalendarMonth(delta) { calendarCursor = new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+delta,1); renderCalendar(); }
+    function goCalendarToday() { const now=new Date(); calendarCursor=new Date(now.getFullYear(),now.getMonth(),1); renderCalendar(); }
+    function renderCalendar() {
+      const events=getCalendarEvents(), year=calendarCursor.getFullYear(), month=calendarCursor.getMonth();
+      document.getElementById('calendarMonthLabel').innerText=`${year}년 ${month+1}월`;
+      const grid=document.getElementById('calendarGrid');
+      const heads=['일','월','화','수','목','금','토'];
+      let html=heads.map(x=>`<div class="calendar-head">${x}</div>`).join('');
+      const first=new Date(year,month,1), last=new Date(year,month+1,0); const start=first.getDay(), total=Math.ceil((start+last.getDate())/7)*7;
+      const todayKey=dateKey(new Date());
+      for(let i=0;i<total;i++) { const dayNum=i-start+1; if(dayNum<1||dayNum>last.getDate()){ html+='<div class="calendar-day muted"></div>'; continue; } const d=new Date(year,month,dayNum), dk=dateKey(d), dayEvents=events.filter(e=>dateKey(e.date)===dk); html+=`<div class="calendar-day ${dk===todayKey?'today':''}"><div class="text-[11px] font-bold text-slate-500">${dayNum}</div>${dayEvents.map(e=>`<button onclick="selectCalendarEvent('${escapeJs(e.id+'_'+e.type)}')" class="calendar-event ${e.type}">${escapeHtml(e.studentName)} · ${escapeHtml(e.label)}</button>`).join('')}</div>`; }
+      grid.innerHTML=html;
+      const selected = selectedCalendarEventKey ? events.find(e => `${e.id}_${e.type}`===selectedCalendarEventKey) : null;
+      const monthEvents = events.filter(e => e.date.getFullYear()===year && e.date.getMonth()===month).sort((a,b)=>a.date-b.date);
+      const defaultDate = selected ? selected.date : (monthEvents[0] ? monthEvents[0].date : new Date(year,month,1));
+      renderCalendarDayList(dateKey(defaultDate), events);
+    }
+    function renderCalendarDayList(dk, events=getCalendarEvents()) {
+      const parts=dk.split('-').map(Number), d=new Date(parts[0],parts[1]-1,parts[2]);
+      document.getElementById('calendarSelectedDateTitle').innerText=`${d.getMonth()+1}월 ${d.getDate()}일 일정`;
+      const dayEvents=events.filter(e=>dateKey(e.date)===dk), list=document.getElementById('calendarDayList');
+      if(!dayEvents.length){ list.innerHTML='<div class="text-xs text-slate-400 py-6 text-center">등록된 일정이 없습니다.</div>'; return; }
+      list.innerHTML=dayEvents.map(e=>`<button onclick="selectCalendarEvent('${escapeJs(e.id+'_'+e.type)}')" class="w-full text-left border border-slate-200 rounded-lg p-3 hover:bg-indigo-50 transition"><div class="flex items-center justify-between gap-2"><strong class="text-xs text-slate-800">${escapeHtml(e.studentName)} (${escapeHtml(e.num)}번)</strong><span class="text-[10px] ${e.type==='final'?'text-emerald-600':'text-orange-600'}">${escapeHtml(e.label)}</span></div><div class="text-[11px] text-slate-500 mt-1">${escapeHtml(e.university||'대학 미입력')}</div></button>`).join('');
+    }
+    function selectCalendarEvent(key) {
+      selectedCalendarEventKey=key;
+      const event=getCalendarEvents().find(e=>`${e.id}_${e.type}`===key); if(!event)return;
+      renderCalendarDayList(dateKey(event.date));
+      const memos=readLocalJson(teacherCalendarMemoKey,{}); const memo=memos[key]||'';
+      document.getElementById('calendarMemoPanel').classList.remove('hidden');
+      document.getElementById('calendarMemoTitle').innerText=`${event.studentName} · ${event.university||'대학 미입력'} · ${event.label}`;
+      document.getElementById('calendarMemoInput').value=memo;
+    }
+    function saveCalendarMemo() { if(!selectedCalendarEventKey)return; const memos=readLocalJson(teacherCalendarMemoKey,{}); memos[selectedCalendarEventKey]=document.getElementById('calendarMemoInput').value; writeLocalJson(teacherCalendarMemoKey,memos); alert('메모가 저장되었습니다.'); }
+
     function openRecordModal(editId = null) {
       document.getElementById('recordModal').classList.remove('hidden');
 
