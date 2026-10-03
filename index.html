@@ -13,377 +13,457 @@
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body {
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      font-family: 'Pretendard', sans-serif;
       background-color: #f8fafc;
     }
     .empty-cell {
       background-color: #f1f5f9;
       color: #94a3b8;
     }
+    .disabled-stage-cell {
+      background-color: #e2e8f0 !important;
+      color: #94a3b8 !important;
+      cursor: not-allowed;
+    }
     .table-container {
       overflow-x: auto;
       max-width: 100%;
     }
-    /* Smooth transitions for tabs */
-    .role-tab {
-      transition: all 0.2s ease-in-out;
-    }
   </style>
 </head>
-<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+<body class="text-slate-800 antialiased bg-slate-100 min-h-screen flex flex-col">
 
-  <!-- Top Navigation Header -->
-  <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50">
+  <!-- Navigation / Header -->
+  <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
-      
-      <!-- Logo & Title -->
       <div class="flex items-center space-x-3">
-        <div class="p-2 bg-indigo-600 rounded-lg shadow">
+        <div class="p-2 bg-indigo-600 rounded-lg">
           <i class="fa-solid fa-graduation-cap text-2xl text-white"></i>
         </div>
         <div>
-          <h1 class="text-lg font-bold tracking-tight flex items-center gap-2">
-            2026 대입 진학 관리 시스템
-            <span id="roleBadge" class="text-xs font-semibold px-2 py-0.5 rounded bg-blue-500 text-white">학생용</span>
-          </h1>
-          <p class="text-xs text-slate-400">실시간 원서 접수 & 전형 결과 분석</p>
+          <h1 class="text-lg font-bold tracking-tight">2026 대입 진학 관리 시스템</h1>
+          <p class="text-xs text-slate-400">장성고등학교 진로진학상담부</p>
         </div>
       </div>
 
-      <!-- Role Selection Tabs -->
-      <div class="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
-        <button id="btnRoleStudent" onclick="switchRole('student')" class="role-tab px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 bg-indigo-600 text-white shadow">
-          <i class="fa-solid fa-user-graduate"></i>
-          <span>학생용</span>
+      <!-- Current Login Session Bar -->
+      <div id="sessionBar" class="hidden items-center space-x-3">
+        <span id="roleBadge" class="text-xs px-2.5 py-1 rounded-full font-bold bg-indigo-500 text-white shadow-sm">
+          교사용
+        </span>
+        <button onclick="openPasswordChangeModal()" id="btnAdminSetting" class="hidden text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2.5 py-1.5 rounded transition">
+          <i class="fa-solid fa-key mr-1"></i>비밀번호 변경
         </button>
-        <button id="btnRoleTeacher" onclick="switchRole('teacher')" class="role-tab px-3 py-1.5 text-xs font-medium rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 flex items-center gap-1.5">
-          <i class="fa-solid fa-chalkboard-user"></i>
-          <span>교사용 (담임)</span>
-        </button>
-        <button id="btnRoleAdmin" onclick="switchRole('admin')" class="role-tab px-3 py-1.5 text-xs font-medium rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 flex items-center gap-1.5">
-          <i class="fa-solid fa-user-gear"></i>
-          <span>관리자용</span>
+        <button onclick="logout()" class="text-xs bg-rose-600/80 hover:bg-rose-600 text-white px-2.5 py-1.5 rounded transition">
+          <i class="fa-solid fa-right-from-bracket mr-1"></i>로그아웃
         </button>
       </div>
-
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
-
-    <!-- Role Notice Banner -->
-    <div id="roleBanner" class="mb-4 p-3 rounded-lg border text-xs flex justify-between items-center bg-blue-50 border-blue-200 text-blue-800">
-      <div class="flex items-center gap-2">
-        <i id="roleBannerIcon" class="fa-solid fa-circle-info text-blue-600 text-sm"></i>
-        <span id="roleBannerText"><strong>학생용 모드:</strong> 지원 내역 및 합격 현황을 조회할 수 있습니다. (수정 불가)</span>
+  <!-- Login Modal View -->
+  <div id="loginView" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200">
+      <div class="bg-slate-800 text-white p-6 text-center">
+        <i class="fa-solid fa-user-shield text-4xl text-indigo-400 mb-2"></i>
+        <h2 class="text-xl font-bold">시스템 로그인</h2>
+        <p class="text-xs text-slate-400 mt-1">접속 권한 유형을 선택하고 비밀번호를 입력하세요.</p>
       </div>
-      <div class="text-[11px] opacity-75">14개 핵심 데이터 자동 요약 적용</div>
+      <form onsubmit="handleLogin(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">사용자 권한</label>
+          <select id="loginRole" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-medium">
+            <option value="student">학생용 (조회 전용)</option>
+            <option value="teacher" selected>교사용 (입력/수정/삭제)</option>
+            <option value="admin">관리자용 (전체 관리 및 설정)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">비밀번호</label>
+          <input type="password" id="loginPassword" placeholder="비밀번호 입력 (기본: 1234)" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg text-sm shadow transition">
+          접속하기
+        </button>
+      </form>
     </div>
+  </div>
 
-    <!-- Control & Search Bar -->
+  <!-- Main Application Body -->
+  <main id="mainApp" class="max-w-7xl mx-auto px-4 py-6 w-full flex-grow hidden">
+
+    <!-- Top Action Bar -->
     <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-wrap justify-between items-center gap-4">
       
-      <!-- Filter Group -->
-      <div class="flex flex-wrap items-center gap-3">
-        <!-- Class Select -->
+      <!-- Class Selector -->
+      <div class="flex items-center space-x-4">
         <div class="flex items-center space-x-2">
-          <label for="classSelect" class="text-xs font-semibold text-slate-700">학급 선택:</label>
-          <select id="classSelect" onchange="onClassChange()" class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-            <option value="전체">전체 학급</option>
+          <label for="classSelect" class="text-sm font-semibold text-slate-700">학급 선택:</label>
+          <select id="classSelect" onchange="renderTable()" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
             <option value="3학년 1반">3학년 1반</option>
             <option value="3학년 2반">3학년 2반</option>
             <option value="3학년 3반">3학년 3반</option>
             <option value="3학년 4반">3학년 4반</option>
-            <option value="3학년 5반">3학년 5반</option>
+            <option value="3학년 5반" selected>3학년 5반</option>
             <option value="3학년 6반">3학년 6반</option>
           </select>
         </div>
-
-        <!-- Student Search Input -->
-        <div class="relative">
-          <input type="text" id="searchInput" onkeyup="renderTable()" placeholder="학생 이름 검색..." class="pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 w-36 sm:w-48">
-          <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-400 text-xs"></i>
-        </div>
-
-        <!-- Student Count Badge -->
-        <span id="studentCountBadge" class="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-medium border border-indigo-100">
-          총 데이터: 0건 (학생 0명)
+        <span id="studentCountBadge" class="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-bold border border-indigo-100">
+          총 학생수: 0명
         </span>
       </div>
 
-      <!-- Admin & Teacher Action Buttons -->
-      <div class="flex items-center space-x-2">
-        <!-- Excel Upload Button (Admin & Teacher Only) -->
-        <label id="uploadBtnContainer" class="cursor-pointer bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+      <!-- Action Buttons for Teacher / Admin -->
+      <div id="editorControls" class="hidden items-center space-x-2">
+        <button onclick="openRecordModal()" class="bg-indigo-600 hover:bg-indigo-700 text-xs text-white font-semibold px-3 py-2 rounded-lg transition shadow flex items-center gap-1.5">
+          <i class="fa-solid fa-plus"></i>
+          <span>지원 내역 추가</span>
+        </button>
+        <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow">
           <i class="fa-solid fa-file-excel text-emerald-400"></i>
           <span>엑셀 업로드</span>
           <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
         </label>
-
-        <!-- Excel Export Button -->
-        <button id="exportBtn" onclick="exportDataToExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-medium px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+        <button onclick="exportCurrentClassToExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-semibold px-3 py-2 rounded-lg transition shadow flex items-center gap-1.5">
           <i class="fa-solid fa-download"></i>
           <span>엑셀 내보내기</span>
         </button>
-
-        <!-- Reset Button (Admin Only) -->
-        <button id="resetDataBtn" onclick="clearAllData()" class="hidden bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-medium px-3 py-2 rounded-lg transition border border-rose-200 items-center gap-1">
-          <i class="fa-solid fa-trash-can"></i>
-          <span>초기화</span>
-        </button>
       </div>
-
     </div>
 
-    <!-- Student Application Data Table Container -->
+    <!-- Data Table Container -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       <div class="table-container">
         <table class="w-full text-left border-collapse text-xs">
           <thead>
-            <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold uppercase tracking-wider text-[11px]">
+            <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
               <th class="py-3 px-2 text-center w-12 border-r border-slate-200">반</th>
               <th class="py-3 px-2 text-center w-12 border-r border-slate-200">번호</th>
               <th class="py-3 px-3 text-center w-20 border-r border-slate-200">이름</th>
-              <th class="py-3 px-2 text-center w-14 border-r border-slate-200">지역</th>
-              <th class="py-3 px-3 text-center w-24 border-r border-slate-200">대학명</th>
-              <th class="py-3 px-2 text-center w-16 border-r border-slate-200">전형유형</th>
+              <th class="py-3 px-3 text-center w-28 border-r border-slate-200">대학명</th>
               <th class="py-3 px-3 text-center w-28 border-r border-slate-200">세부유형</th>
               <th class="py-3 px-3 text-center w-28 border-r border-slate-200">모집단위</th>
               <th class="py-3 px-2 text-center w-24 border-r border-slate-200">최저학력기준</th>
               <th class="py-3 px-3 text-center w-28 border-r border-slate-200">면접/논술일자</th>
-              <th class="py-3 px-2 text-center w-24 border-r border-slate-200 bg-indigo-50/60">1단계</th>
+              <th class="py-3 px-2 text-center w-20 border-r border-slate-200 bg-indigo-50/50">1단계</th>
               <th class="py-3 px-2 text-center w-24 border-r border-slate-200">최종발표일</th>
-              <th class="py-3 px-2 text-center w-24 border-r border-slate-200 bg-indigo-50/60">최종단계</th>
-              <th class="py-3 px-3 text-center min-w-[130px]">불합격사유</th>
+              <th class="py-3 px-2 text-center w-20 border-r border-slate-200 bg-indigo-50/50">최종단계</th>
+              <th class="py-3 px-3 text-center min-w-[120px] border-r border-slate-200">불합격사유</th>
+              <th id="thActionHeader" class="py-3 px-2 text-center w-16 hidden">관리</th>
             </tr>
           </thead>
           <tbody id="studentTableBody" class="divide-y divide-slate-200">
-            <!-- Dynamic Content or Empty State -->
+            <!-- Dynamic Data Rows -->
           </tbody>
         </table>
       </div>
     </div>
-
   </main>
 
-  <!-- Footer -->
-  <footer class="bg-slate-100 border-t border-slate-200 py-4 mt-auto">
-    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
-      2026학년도 대학입학 진학 관리 시스템 &copy; 교사용 및 학생용 통합 단일 파일 웹 앱
+  <!-- Add / Edit Record Modal -->
+  <div id="recordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-xl overflow-hidden border border-slate-200">
+      <div class="bg-indigo-600 px-6 py-4 text-white flex justify-between items-center">
+        <h3 id="modalTitle" class="font-bold text-base">지원 내역 추가/수정</h3>
+        <button onclick="closeRecordModal()" class="text-white hover:text-indigo-200 text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form onsubmit="saveRecord(event)" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <input type="hidden" id="editRecordId">
+        
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">학급</label>
+            <select id="inputGradeClass" class="w-full border rounded p-2 text-xs">
+              <option value="3학년 1반">3학년 1반</option>
+              <option value="3학년 2반">3학년 2반</option>
+              <option value="3학년 3반">3학년 3반</option>
+              <option value="3학년 4반">3학년 4반</option>
+              <option value="3학년 5반" selected>3학년 5반</option>
+              <option value="3학년 6반">3학년 6반</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">번호</label>
+            <input type="number" id="inputNum" required min="1" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">이름</label>
+            <input type="text" id="inputName" required class="w-full border rounded p-2 text-xs">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">대학명</label>
+            <input type="text" id="inputUniversity" placeholder="예: 서울대학교" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">세부유형</label>
+            <input type="text" id="inputDetailType" placeholder="예: 일반전형, 학교장추천" class="w-full border rounded p-2 text-xs">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">모집단위</label>
+            <input type="text" id="inputDept" placeholder="예: 컴퓨터공학부" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">최저학력기준</label>
+            <input type="text" id="inputMinExam" placeholder="예: 3개합 7이내" class="w-full border rounded p-2 text-xs">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">면접/논술일자</label>
+            <input type="text" id="inputInterviewDate" placeholder="예: 2026-11-21 또는 기간" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">1단계 결과</label>
+            <select id="inputStep1" class="w-full border rounded p-2 text-xs">
+              <option value="">-</option>
+              <option value="1차합격">1차합격</option>
+              <option value="1차불합">1차불합</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">최종발표일</label>
+            <input type="text" id="inputFinalDate" placeholder="예: 2026-12-15" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">최종단계 결과</label>
+            <select id="inputFinalStep" class="w-full border rounded p-2 text-xs">
+              <option value="">-</option>
+              <option value="합격">합격</option>
+              <option value="불합격">불합격</option>
+              <option value="추합">추합</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">불합격사유</label>
+          <input type="text" id="inputFailReason" placeholder="예: 최저 미충족" class="w-full border rounded p-2 text-xs">
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="closeRecordModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded text-xs text-slate-700 font-semibold">취소</button>
+          <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-xs text-white font-bold">저장하기</button>
+        </div>
+      </form>
     </div>
-  </footer>
+  </div>
 
-  <!-- System JavaScript -->
+  <!-- Admin Password Change Modal -->
+  <div id="passwordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
+      <div class="bg-slate-800 px-6 py-4 text-white flex justify-between items-center">
+        <h3 class="font-bold text-base"><i class="fa-solid fa-shield-halved text-amber-400 mr-2"></i>비밀번호 설정 변경</h3>
+        <button onclick="closePasswordModal()" class="text-white hover:text-slate-300"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form onsubmit="savePasswords(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">학생용 비밀번호</label>
+          <input type="text" id="pwdStudent" required class="w-full border rounded p-2 text-xs font-mono">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">교사용 비밀번호</label>
+          <input type="text" id="pwdTeacher" required class="w-full border rounded p-2 text-xs font-mono">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">관리자용 비밀번호</label>
+          <input type="text" id="pwdAdmin" required class="w-full border rounded p-2 text-xs font-mono">
+        </div>
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="closePasswordModal()" class="px-4 py-2 bg-slate-200 rounded text-xs font-semibold">취소</button>
+          <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded text-xs font-bold">변경사항 저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
-    // State Variables
-    let currentRole = 'student'; // 'student', 'teacher', 'admin'
-    let rawDatabase = []; // Empty by default (No sample data embedded)
+    // State Management
+    let passwords = {
+      student: "1234",
+      teacher: "1234",
+      admin: "1234"
+    };
 
-    // On Page Load Initialization
-    window.addEventListener('DOMContentLoaded', () => {
-      // Load stored data from localStorage if exists
-      const savedData = localStorage.getItem('entrance_data_2026');
-      if (savedData) {
-        try {
-          rawDatabase = JSON.parse(savedData);
-        } catch (e) {
-          rawDatabase = [];
+    let currentRole = null; // 'student', 'teacher', 'admin'
+    let rawDatabase = [];   // Main In-Memory Storage
+
+    // Login Handler
+    function handleLogin(event) {
+      event.preventDefault();
+      const role = document.getElementById('loginRole').value;
+      const pwdInput = document.getElementById('loginPassword').value;
+
+      if (pwdInput === passwords[role]) {
+        currentRole = role;
+        document.getElementById('loginView').classList.add('hidden');
+        document.getElementById('mainApp').classList.remove('hidden');
+        document.getElementById('sessionBar').classList.remove('hidden');
+        document.getElementById('sessionBar').classList.add('flex');
+
+        // Role Badge UI
+        const roleBadge = document.getElementById('roleBadge');
+        if (role === 'student') {
+          roleBadge.innerText = '학생용 (조회 전용)';
+          roleBadge.className = 'text-xs px-2.5 py-1 rounded-full font-bold bg-slate-600 text-white';
+        } else if (role === 'teacher') {
+          roleBadge.innerText = '담임교사용';
+          roleBadge.className = 'text-xs px-2.5 py-1 rounded-full font-bold bg-indigo-600 text-white';
+        } else if (role === 'admin') {
+          roleBadge.innerText = '최고관리자용';
+          roleBadge.className = 'text-xs px-2.5 py-1 rounded-full font-bold bg-amber-600 text-white';
         }
+
+        // Permission UI Controls
+        const isEditor = (role === 'teacher' || role === 'admin');
+        document.getElementById('editorControls').className = isEditor ? 'flex items-center space-x-2' : 'hidden';
+        document.getElementById('btnAdminSetting').className = (role === 'admin') ? 'text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2.5 py-1.5 rounded transition' : 'hidden';
+        document.getElementById('thActionHeader').className = isEditor ? 'py-3 px-2 text-center w-16 font-bold' : 'hidden';
+
+        renderTable();
+      } else {
+        alert('비밀번호가 올바르지 않습니다.');
       }
-      switchRole('student');
-    });
-
-    // Role Switching Controller
-    function switchRole(role) {
-      currentRole = role;
-
-      // Update Tab Styles
-      const btnStudent = document.getElementById('btnRoleStudent');
-      const btnTeacher = document.getElementById('btnRoleTeacher');
-      const btnAdmin = document.getElementById('btnRoleAdmin');
-
-      const activeClasses = "bg-indigo-600 text-white shadow";
-      const inactiveClasses = "text-slate-300 hover:text-white hover:bg-slate-700";
-
-      btnStudent.className = `role-tab px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 ${role === 'student' ? activeClasses : inactiveClasses}`;
-      btnTeacher.className = `role-tab px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 ${role === 'teacher' ? activeClasses : inactiveClasses}`;
-      btnAdmin.className = `role-tab px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 ${role === 'admin' ? activeClasses : inactiveClasses}`;
-
-      // Update Role Badge and Banner
-      const roleBadge = document.getElementById('roleBadge');
-      const banner = document.getElementById('roleBanner');
-      const bannerIcon = document.getElementById('roleBannerIcon');
-      const bannerText = document.getElementById('roleBannerText');
-      const resetBtn = document.getElementById('resetDataBtn');
-
-      if (role === 'student') {
-        roleBadge.innerText = '학생용';
-        roleBadge.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-blue-500 text-white';
-        banner.className = 'mb-4 p-3 rounded-lg border text-xs flex justify-between items-center bg-blue-50 border-blue-200 text-blue-800';
-        bannerIcon.className = 'fa-solid fa-graduation-cap text-blue-600 text-sm';
-        bannerText.innerHTML = '<strong>학생용 모드:</strong> 전체 지원 내역 및 대입 처리 현황을 열람합니다. (수정 권한 없음)';
-        resetBtn.classList.add('hidden');
-      } else if (role === 'teacher') {
-        roleBadge.innerText = '교사용 (담임)';
-        roleBadge.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-emerald-600 text-white';
-        banner.className = 'mb-4 p-3 rounded-lg border text-xs flex justify-between items-center bg-emerald-50 border-emerald-200 text-emerald-800';
-        bannerIcon.className = 'fa-solid fa-chalkboard-user text-emerald-600 text-sm';
-        bannerText.innerHTML = '<strong>교사용 모드:</strong> [1단계], [최종단계], [불합격사유] 셀을 직접 클릭하여 학생의 상태를 수정할 수 있습니다.';
-        resetBtn.classList.add('hidden');
-      } else if (role === 'admin') {
-        roleBadge.innerText = '관리자용';
-        roleBadge.className = 'text-xs font-semibold px-2 py-0.5 rounded bg-purple-600 text-white';
-        banner.className = 'mb-4 p-3 rounded-lg border text-xs flex justify-between items-center bg-purple-50 border-purple-200 text-purple-800';
-        bannerIcon.className = 'fa-solid fa-user-gear text-purple-600 text-sm';
-        bannerText.innerHTML = '<strong>관리자 모드:</strong> 전체 데이터 조회, 엑셀 업로드/내보내기 및 데이터 관리 전체 권한을 가집니다.';
-        resetBtn.classList.remove('hidden');
-        resetBtn.classList.add('flex');
-      }
-
-      renderTable();
     }
 
-    // University Name Summarizer ('서울대학교' -> '서울대', '고려대학교(세종)' -> '고려대(세종)')
-    function summarizeUniv(univ) {
-      if (!univ) return "";
-      let cleaned = String(univ).trim();
-      cleaned = cleaned.replace(/대학교/g, "대");
-      return cleaned;
+    function logout() {
+      currentRole = null;
+      document.getElementById('loginPassword').value = '';
+      document.getElementById('mainApp').classList.add('hidden');
+      document.getElementById('sessionBar').classList.add('hidden');
+      document.getElementById('loginView').classList.remove('hidden');
     }
 
-    // Admission Type Summarizer (Extracts '교과', '종합', '실기', '논술')
-    function summarizeType(typeStr) {
-      if (!typeStr) return "";
-      const text = String(typeStr).trim();
-      const keywords = ["교과", "종합", "실기", "논술"];
-      const found = keywords.filter(k => text.includes(k));
-      return found.length > 0 ? found.join('/') : text;
+    // Password Change Modal
+    function openPasswordChangeModal() {
+      document.getElementById('pwdStudent').value = passwords.student;
+      document.getElementById('pwdTeacher').value = passwords.teacher;
+      document.getElementById('pwdAdmin').value = passwords.admin;
+      document.getElementById('passwordModal').classList.remove('hidden');
     }
 
-    // Date Formatter ('2026-11-21' or '2026.11.21' -> ''26.11.21.(토)')
-    function formatDate(dateStr) {
-      if (!dateStr) return "";
-      
-      let cleaned = String(dateStr).trim().replace(/[.\/]/g, '-');
-      // If pure numbers, try parsing
-      const dateObj = new Date(cleaned);
+    function closePasswordModal() {
+      document.getElementById('passwordModal').classList.add('hidden');
+    }
 
-      if (isNaN(dateObj.getTime())) {
-        return dateStr; // Return raw string if custom format
-      }
-
-      const yy = String(dateObj.getFullYear()).slice(-2);
-      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-      const dd = String(dateObj.getDate()).padStart(2, '0');
-      
-      const days = ['일', '월', '화', '수', '목', '금', '토'];
-      const dayName = days[dateObj.getDay()];
-
-      return `'${yy}.${mm}.${dd}.(${dayName})`;
+    function savePasswords(e) {
+      e.preventDefault();
+      passwords.student = document.getElementById('pwdStudent').value;
+      passwords.teacher = document.getElementById('pwdTeacher').value;
+      passwords.admin = document.getElementById('pwdAdmin').value;
+      alert('비밀번호 설정이 변경되었습니다.');
+      closePasswordModal();
     }
 
     // Class Name Normalizer
     function normalizeClassName(inputStr) {
       if (!inputStr) return "";
       const str = String(inputStr).trim();
-      
       const match = str.match(/(\d+)\s*학년\s*(\d+)\s*반/) || str.match(/(\d+)-(\d+)/);
-      if (match) {
-        return `${match[1]}학년 ${match[2]}반`;
-      }
+      if (match) return `${match[1]}학년 ${match[2]}반`;
       const singleNumMatch = str.match(/^(\d+)\s*반?$/);
-      if (singleNumMatch) {
-        return `3학년 ${singleNumMatch[1]}반`;
-      }
+      if (singleNumMatch) return `3학년 ${singleNumMatch[1]}반`;
       return str;
     }
 
-    // Class Select Filter Trigger
-    function onClassChange() {
-      renderTable();
+    // Helper: University Name Summarizer
+    function summarizeUniv(univ) {
+      if (!univ) return "";
+      let cleaned = String(univ).trim();
+      cleaned = cleaned.replace(/대학교$/, "대");
+      return cleaned;
     }
 
-    // Render Table Logic
+    // Helper: Detail Type Summarizer (Remove '학생부', '전형')
+    function summarizeDetailType(detailStr) {
+      if (!detailStr) return "";
+      let cleaned = String(detailStr).trim();
+      cleaned = cleaned.replace(/학생부/g, "").replace(/전형/g, "").trim();
+      return cleaned;
+    }
+
+    // Helper: Date Formatter & Equal Date Shortener
+    function formatDate(dateStr) {
+      if (!dateStr) return "";
+      let str = String(dateStr).trim();
+
+      // Handling Range Date format (e.g. '2026-12-11 ~ 2026-12-11')
+      if (str.includes('~')) {
+        const parts = str.split('~').map(p => p.trim());
+        if (parts.length === 2 && parts[0] === parts[1]) {
+          str = parts[0];
+        }
+      }
+
+      let cleaned = str.replace(/[.\/]/g, '-');
+      const dateObj = new Date(cleaned);
+
+      if (isNaN(dateObj.getTime())) {
+        return str; // Return original string if not parsed as date
+      }
+
+      const yy = String(dateObj.getFullYear()).slice(-2);
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const dd = String(dateObj.getDate()).padStart(2, '0');
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      const dayName = days[dateObj.getDay()];
+
+      return `'${yy}.${mm}.${dd}.(${dayName})`;
+    }
+
+    // Table Render Logic
     function renderTable() {
       const selectedClass = document.getElementById('classSelect').value;
-      const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+      const normalizedTargetClass = normalizeClassName(selectedClass);
 
-      // Filter Data
-      let filtered = rawDatabase.filter(item => {
-        // Class filter
-        if (selectedClass !== "전체") {
-          const normSelected = normalizeClassName(selectedClass);
-          const normItemClass = normalizeClassName(item.gradeClass);
-          if (normItemClass !== normSelected) return false;
-        }
-        // Name search
-        if (searchQuery !== "") {
-          const nameMatch = String(item.name).toLowerCase().includes(searchQuery);
-          const univMatch = String(item.university).toLowerCase().includes(searchQuery);
-          if (!nameMatch && !univMatch) return false;
-        }
-        return true;
-      });
+      const classData = rawDatabase.filter(item => normalizeClassName(item.gradeClass) === normalizedTargetClass);
 
-      // Group by Student (Number + Name + Class)
-      const studentMap = new Map();
-      filtered.forEach(item => {
-        const key = `${item.gradeClass}_${item.num}_${item.name}`;
-        if (!studentMap.has(key)) {
-          studentMap.set(key, {
-            gradeClass: item.gradeClass,
+      // Grouping by student number & name
+      const studentGroupMap = new Map();
+      classData.forEach(item => {
+        const key = `${item.num}_${item.name}`;
+        if (!studentGroupMap.has(key)) {
+          studentGroupMap.set(key, {
             num: item.num,
             name: item.name,
+            gradeClass: item.gradeClass,
             applications: []
           });
         }
-        studentMap.get(key).applications.push(item);
+        studentGroupMap.get(key).applications.push(item);
       });
 
-      const groupedStudents = Array.from(studentMap.values());
-      // Sort students by class then number
-      groupedStudents.sort((a, b) => {
-        if (a.gradeClass !== b.gradeClass) return a.gradeClass.localeCompare(b.gradeClass);
-        return Number(a.num) - Number(b.num);
-      });
+      const groupedStudents = Array.from(studentGroupMap.values());
+      groupedStudents.sort((a, b) => Number(a.num) - Number(b.num));
 
-      // Update Count
-      document.getElementById('studentCountBadge').innerText = `총 지원건수: ${filtered.length}건 (학생 ${groupedStudents.length}명)`;
+      document.getElementById('studentCountBadge').innerText = `총 학생수: ${groupedStudents.length}명`;
 
       const tbody = document.getElementById('studentTableBody');
       tbody.innerHTML = '';
 
-      // Empty State View when no Excel Data
-      if (rawDatabase.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="14" class="py-16 text-center bg-slate-50">
-              <div class="max-w-md mx-auto flex flex-col items-center justify-center space-y-3">
-                <div class="p-3 bg-indigo-100 rounded-full text-indigo-600">
-                  <i class="fa-solid fa-file-excel text-3xl"></i>
-                </div>
-                <h3 class="text-base font-bold text-slate-800">업로드된 대입 진학 데이터가 없습니다</h3>
-                <p class="text-xs text-slate-500 leading-relaxed">
-                  상단의 <span class="font-semibold text-slate-700">[엑셀 업로드]</span> 버튼을 클릭하여 학급 학생들의 대입 원서 접수 데이터 파일(.xlsx)을 등록해 주세요.
-                </p>
-              </div>
-            </td>
-          </tr>`;
-        return;
-      }
+      const isEditor = (currentRole === 'teacher' || currentRole === 'admin');
 
       if (groupedStudents.length === 0) {
+        const colSpanCount = isEditor ? 13 : 12;
         tbody.innerHTML = `
           <tr>
-            <td colspan="14" class="py-12 text-center text-slate-400 bg-slate-50">
-              <i class="fa-solid fa-magnifying-glass text-2xl mb-2 block text-slate-300"></i>
-              검색 조건에 일치하는 진학 데이터가 없습니다.
+            <td colspan="${colSpanCount}" class="py-12 text-center text-slate-400 bg-slate-50">
+              <i class="fa-solid fa-folder-open text-3xl mb-2 block text-slate-300"></i>
+              선택한 학급(${selectedClass})의 등록된 데이터가 없습니다. ${isEditor ? '엑셀을 업로드하거나 지원 내역을 추가해 주세요.' : ''}
             </td>
           </tr>`;
         return;
       }
 
-      // Render Table Rows with Rowspan for Students
       groupedStudents.forEach(student => {
         const appCount = student.applications.length;
 
@@ -391,45 +471,60 @@
           const tr = document.createElement('tr');
           tr.className = "hover:bg-slate-50/80 transition border-b border-slate-200";
 
-          // Rowspan for student info
           let studentInfoCells = '';
           if (index === 0) {
-            const classShort = String(student.gradeClass).replace("3학년 ", "");
+            const classShort = student.gradeClass.replace("3학년 ", "");
             studentInfoCells = `
-              <td rowspan="${appCount}" class="py-2.5 px-2 text-center font-semibold text-slate-700 bg-white border-r border-slate-200 align-middle">${classShort}</td>
-              <td rowspan="${appCount}" class="py-2.5 px-2 text-center font-medium text-slate-600 bg-white border-r border-slate-200 align-middle">${student.num}</td>
-              <td rowspan="${appCount}" class="py-2.5 px-3 text-center font-bold text-slate-900 bg-white border-r border-slate-200 align-middle">${student.name}</td>
+              <td rowspan="${appCount}" class="py-2 px-2 text-center font-semibold text-slate-700 bg-white border-r border-slate-200 align-middle">${classShort}</td>
+              <td rowspan="${appCount}" class="py-2 px-2 text-center font-medium text-slate-600 bg-white border-r border-slate-200 align-middle">${student.num}</td>
+              <td rowspan="${appCount}" class="py-2 px-3 text-center font-bold text-slate-900 bg-white border-r border-slate-200 align-middle">${student.name}</td>
             `;
           }
 
-          // Process and Formats
-          const regionText = renderCellContent(app.region);
+          const isStep1Failed = (app.step1 === '1차불합');
+
           const univText = renderCellContent(summarizeUniv(app.university), "font-semibold text-slate-800");
-          const typeText = renderCellContent(summarizeType(app.type));
-          const detailTypeText = renderCellContent(app.detailType);
+          const detailTypeText = renderCellContent(summarizeDetailType(app.detailType));
           const deptText = renderCellContent(app.dept);
           const minExamText = renderCellContent(app.minExam);
-          const testDateText = renderCellContent(formatDate(app.interviewOrEssayDate));
-          const finalDateText = renderCellContent(formatDate(app.finalDate));
+          const interviewDateText = renderCellContent(formatDate(app.interviewDate));
 
-          // Step Status Component (Interactive for Teachers/Admins, Static for Students)
-          const step1Cell = renderStatusField(app.id, 'step1', app.step1);
-          const finalStepCell = renderStatusField(app.id, 'finalStep', app.finalStep);
-          const failReasonCell = renderFailReasonField(app.id, app.failReason);
+          // Disabled UI logic when 1단계 is '1차불합'
+          let finalDateText, finalStepSelect, failReasonText;
+
+          if (isStep1Failed) {
+            finalDateText = `<span class="text-slate-400">-</span>`;
+            finalStepSelect = `<span class="text-slate-400 font-medium">-</span>`;
+            failReasonText = renderCellContent(app.failReason || "1단계 불합격");
+          } else {
+            finalDateText = renderCellContent(formatDate(app.finalDate));
+            finalStepSelect = createStatusSelectHtml(app.id, 'finalStep', app.finalStep, isEditor, ['합격', '불합격', '추합']);
+            failReasonText = renderCellContent(app.failReason);
+          }
+
+          const step1Select = createStatusSelectHtml(app.id, 'step1', app.step1, isEditor, ['1차합격', '1차불합']);
+
+          const actionCellHtml = isEditor ? `
+            <td class="py-2 px-2 text-center align-middle bg-white">
+              <div class="flex justify-center space-x-1">
+                <button onclick="openRecordModal(${app.id})" class="text-indigo-600 hover:text-indigo-800 p-1" title="수정"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button onclick="deleteRecord(${app.id})" class="text-rose-600 hover:text-rose-800 p-1" title="삭제"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </td>
+          ` : '';
 
           tr.innerHTML = `
             ${studentInfoCells}
-            <td class="py-2 px-2 text-center border-r border-slate-200 ${getCellBgClass(app.region)}">${regionText}</td>
             <td class="py-2 px-3 text-center border-r border-slate-200 ${getCellBgClass(app.university)}">${univText}</td>
-            <td class="py-2 px-2 text-center border-r border-slate-200 ${getCellBgClass(app.type)}">${typeText}</td>
             <td class="py-2 px-3 text-center border-r border-slate-200 ${getCellBgClass(app.detailType)}">${detailTypeText}</td>
             <td class="py-2 px-3 text-center border-r border-slate-200 ${getCellBgClass(app.dept)}">${deptText}</td>
             <td class="py-2 px-2 text-center border-r border-slate-200 ${getCellBgClass(app.minExam)}">${minExamText}</td>
-            <td class="py-2 px-3 text-center border-r border-slate-200 ${getCellBgClass(app.interviewOrEssayDate)}">${testDateText}</td>
-            <td class="py-2 px-2 text-center border-r border-slate-200 bg-indigo-50/20">${step1Cell}</td>
-            <td class="py-2 px-2 text-center border-r border-slate-200 ${getCellBgClass(app.finalDate)}">${finalDateText}</td>
-            <td class="py-2 px-2 text-center border-r border-slate-200 bg-indigo-50/20">${finalStepCell}</td>
-            <td class="py-2 px-3 text-center ${getCellBgClass(app.failReason)}">${failReasonCell}</td>
+            <td class="py-2 px-3 text-center border-r border-slate-200 ${getCellBgClass(app.interviewDate)}">${interviewDateText}</td>
+            <td class="py-2 px-2 text-center border-r border-slate-200 bg-indigo-50/20">${step1Select}</td>
+            <td class="py-2 px-2 text-center border-r border-slate-200 ${isStep1Failed ? 'disabled-stage-cell' : getCellBgClass(app.finalDate)}">${finalDateText}</td>
+            <td class="py-2 px-2 text-center border-r border-slate-200 ${isStep1Failed ? 'disabled-stage-cell' : 'bg-indigo-50/20'}">${finalStepSelect}</td>
+            <td class="py-2 px-3 text-center border-r border-slate-200 ${isStep1Failed ? 'disabled-stage-cell' : getCellBgClass(app.failReason)}">${failReasonText}</td>
+            ${actionCellHtml}
           `;
 
           tbody.appendChild(tr);
@@ -437,7 +532,6 @@
       });
     }
 
-    // Helper: Determine Empty Cell Style
     function getCellBgClass(value) {
       if (!value || String(value).trim() === "" || String(value).trim() === "-") {
         return "empty-cell";
@@ -445,7 +539,6 @@
       return "bg-white";
     }
 
-    // Helper: Render Text Content or Empty Dash
     function renderCellContent(value, extraClass = "") {
       if (!value || String(value).trim() === "" || String(value).trim() === "-") {
         return `<span class="text-slate-400 font-normal">-</span>`;
@@ -453,87 +546,129 @@
       return `<span class="${extraClass}">${value}</span>`;
     }
 
-    // Render Status Field (Dropdown if Teacher/Admin, Badge if Student)
-    function renderStatusField(id, field, value) {
-      const val = (value || "").trim();
+    // Dynamic Select Box Generator
+    function createStatusSelectHtml(id, field, currentValue, isEditor, options) {
+      const val = (currentValue || "").trim();
 
-      // Student Role or View-Only Mode
-      if (currentRole === 'student') {
-        if (!val || val === "-") return `<span class="text-slate-400">-</span>`;
-        
-        let badgeColor = "bg-slate-100 text-slate-600";
-        if (val === "합격") badgeColor = "bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 px-2 py-0.5 rounded";
-        else if (val === "불합격") badgeColor = "bg-rose-100 text-rose-800 font-medium border border-rose-300 px-2 py-0.5 rounded";
-        else if (val === "1차합격" || val === "대기") badgeColor = "bg-amber-100 text-amber-800 font-medium border border-amber-300 px-2 py-0.5 rounded";
-
-        return `<span class="${badgeColor}">${val}</span>`;
+      if (!isEditor) {
+        if (!val) return `<span class="text-slate-400">-</span>`;
+        let colorBadge = "bg-slate-100 text-slate-700";
+        if (val === "합격" || val === "1차합격") colorBadge = "bg-emerald-100 text-emerald-800 font-bold";
+        if (val === "불합격" || val === "1차불합") colorBadge = "bg-rose-100 text-rose-800 font-medium";
+        if (val === "추합") colorBadge = "bg-amber-100 text-amber-800 font-bold";
+        return `<span class="px-2 py-0.5 rounded text-[11px] ${colorBadge}">${val}</span>`;
       }
 
-      // Teacher / Admin Editable Select Box
       let colorStyle = "bg-slate-100 text-slate-500 border-slate-200";
-      if (val === "합격") colorStyle = "bg-emerald-100 text-emerald-800 border-emerald-400 font-bold";
-      else if (val === "불합격") colorStyle = "bg-rose-100 text-rose-800 border-rose-400 font-medium";
-      else if (val === "1차합격" || val === "대기") colorStyle = "bg-amber-100 text-amber-800 border-amber-400 font-medium";
+      if (val === "합격" || val === "1차합격") colorStyle = "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold";
+      if (val === "불합격" || val === "1차불합") colorStyle = "bg-rose-100 text-rose-800 border-rose-300 font-medium";
+      if (val === "추합") colorStyle = "bg-amber-100 text-amber-800 border-amber-300 font-bold";
+
+      const optionsHtml = options.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`).join('');
 
       return `
-        <select onchange="updateRecordField(${id}, '${field}', this.value)" 
-                class="text-xs py-1 px-1.5 rounded border focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer ${colorStyle}">
+        <select onchange="updateStatus(${id}, '${field}', this.value)" 
+                class="text-xs py-1 px-1 rounded border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${colorStyle}">
           <option value="" ${val === "" ? "selected" : ""}>-</option>
-          <option value="합격" ${val === "합격" ? "selected" : ""}>합격</option>
-          <option value="불합격" ${val === "불합격" ? "selected" : ""}>불합격</option>
-          <option value="1차합격" ${val === "1차합격" ? "selected" : ""}>1차합격</option>
-          <option value="대기" ${val === "대기" ? "selected" : ""}>대기</option>
-          <option value="미응시" ${val === "미응시" ? "selected" : ""}>미응시</option>
+          ${optionsHtml}
         </select>
       `;
     }
 
-    // Render Fail Reason Field (Editable Input for Teacher/Admin)
-    function renderFailReasonField(id, value) {
-      const val = (value || "").trim();
-
-      if (currentRole === 'student') {
-        return renderCellContent(val);
-      }
-
-      return `
-        <input type="text" 
-               value="${val}" 
-               placeholder="사유 입력"
-               onchange="updateRecordField(${id}, 'failReason', this.value)"
-               class="w-full text-xs px-2 py-1 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white" />
-      `;
-    }
-
-    // Update Record Value in Memory & Storage
-    function updateRecordField(id, field, value) {
-      const record = rawDatabase.find(item => item.id === id);
-      if (record) {
-        record[field] = value;
-        saveToLocalStorage();
+    function updateStatus(id, field, value) {
+      const target = rawDatabase.find(item => item.id === id);
+      if (target) {
+        target[field] = value;
         renderTable();
       }
     }
 
-    // Save Data locally
-    function saveToLocalStorage() {
-      try {
-        localStorage.setItem('entrance_data_2026', JSON.stringify(rawDatabase));
-      } catch(e) {
-        console.error("Storage save failed", e);
+    // Modal Control & Record Management
+    function openRecordModal(editId = null) {
+      const modal = document.getElementById('recordModal');
+      modal.classList.remove('hidden');
+
+      if (editId) {
+        document.getElementById('modalTitle').innerText = '지원 내역 수정';
+        const record = rawDatabase.find(r => r.id === editId);
+        if (record) {
+          document.getElementById('editRecordId').value = record.id;
+          document.getElementById('inputGradeClass').value = record.gradeClass;
+          document.getElementById('inputNum').value = record.num;
+          document.getElementById('inputName').value = record.name;
+          document.getElementById('inputUniversity').value = record.university || '';
+          document.getElementById('inputDetailType').value = record.detailType || '';
+          document.getElementById('inputDept').value = record.dept || '';
+          document.getElementById('inputMinExam').value = record.minExam || '';
+          document.getElementById('inputInterviewDate').value = record.interviewDate || '';
+          document.getElementById('inputStep1').value = record.step1 || '';
+          document.getElementById('inputFinalDate').value = record.finalDate || '';
+          document.getElementById('inputFinalStep').value = record.finalStep || '';
+          document.getElementById('inputFailReason').value = record.failReason || '';
+        }
+      } else {
+        document.getElementById('modalTitle').innerText = '지원 내역 추가';
+        document.getElementById('editRecordId').value = '';
+        document.getElementById('inputGradeClass').value = document.getElementById('classSelect').value;
+        document.getElementById('inputNum').value = '';
+        document.getElementById('inputName').value = '';
+        document.getElementById('inputUniversity').value = '';
+        document.getElementById('inputDetailType').value = '';
+        document.getElementById('inputDept').value = '';
+        document.getElementById('inputMinExam').value = '';
+        document.getElementById('inputInterviewDate').value = '';
+        document.getElementById('inputStep1').value = '';
+        document.getElementById('inputFinalDate').value = '';
+        document.getElementById('inputFinalStep').value = '';
+        document.getElementById('inputFailReason').value = '';
       }
     }
 
-    // Clear All Data (Admin Only)
-    function clearAllData() {
-      if (confirm('모든 진학 데이터를 삭제하고 초기 상태로 되돌리시겠습니까?')) {
-        rawDatabase = [];
-        localStorage.removeItem('entrance_data_2026');
+    function closeRecordModal() {
+      document.getElementById('recordModal').classList.add('hidden');
+    }
+
+    function saveRecord(e) {
+      e.preventDefault();
+      const editId = document.getElementById('editRecordId').value;
+
+      const recordData = {
+        gradeClass: normalizeClassName(document.getElementById('inputGradeClass').value),
+        num: Number(document.getElementById('inputNum').value),
+        name: document.getElementById('inputName').value.trim(),
+        university: document.getElementById('inputUniversity').value.trim(),
+        detailType: document.getElementById('inputDetailType').value.trim(),
+        dept: document.getElementById('inputDept').value.trim(),
+        minExam: document.getElementById('inputMinExam').value.trim(),
+        interviewDate: document.getElementById('inputInterviewDate').value.trim(),
+        step1: document.getElementById('inputStep1').value,
+        finalDate: document.getElementById('inputFinalDate').value.trim(),
+        finalStep: document.getElementById('inputFinalStep').value,
+        failReason: document.getElementById('inputFailReason').value.trim()
+      };
+
+      if (editId) {
+        const index = rawDatabase.findIndex(r => r.id === Number(editId));
+        if (index !== -1) {
+          rawDatabase[index] = { ...rawDatabase[index], ...recordData };
+        }
+      } else {
+        const newId = Date.now();
+        rawDatabase.push({ id: newId, ...recordData });
+      }
+
+      closeRecordModal();
+      renderTable();
+    }
+
+    function deleteRecord(id) {
+      if (confirm('해당 지원 내역을 삭제하시겠습니까?')) {
+        rawDatabase = rawDatabase.filter(r => r.id !== id);
         renderTable();
       }
     }
 
-    // Excel Upload Handler with Dynamic Column Matching
+    // Excel Parsing & File Upload
     function handleFileUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -545,121 +680,76 @@
           const workbook = XLSX.read(data, { type: 'array' });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
           if (jsonData.length === 0) {
-            alert('업로드한 엑셀 파일에 데이터가 존재하지 않습니다.');
+            alert('엑셀 파일에 데이터가 없습니다.');
             return;
           }
 
-          // Flexibly match headers
-          let idCounter = Date.now();
-          const parsedRecords = jsonData.map(row => {
-            idCounter++;
-
-            // Smart key search helper
-            const getVal = (keys) => {
-              for (let k of keys) {
-                const foundKey = Object.keys(row).find(rk => rk.trim().includes(k));
-                if (foundKey && row[foundKey] !== undefined) return row[foundKey];
-              }
-              return "";
-            };
-
-            const gradeClassRaw = getVal(['반', '학급', '학년반']) || "3학년 1반";
-            const numRaw = getVal(['번호', '번']);
-            const nameRaw = getVal(['이름', '성명', '학생명']);
-            const regionRaw = getVal(['지역']);
-            const univRaw = getVal(['대학명', '대학']);
-            const typeRaw = getVal(['전형유형', '전형구분', '전형']);
-            const detailTypeRaw = getVal(['세부유형', '전형세부', '세부전형']);
-            const deptRaw = getVal(['모집단위', '학과', '학부']);
-            const minExamRaw = getVal(['최저학력기준', '최저', '수능최저']);
-            const dateRaw = getVal(['면접', '논술', '면접or논술', '시험일자']);
-            const step1Raw = getVal(['1단계', '1차']);
-            const finalDateRaw = getVal(['최종발표일', '발표일']);
-            const finalStepRaw = getVal(['최종단계', '최종', '합불']);
-            const failReasonRaw = getVal(['불합격사유', '사유', '비고']);
-
+          let newIdCounter = Date.now();
+          const parsedData = jsonData.map(row => {
+            newIdCounter++;
             return {
-              id: idCounter,
-              gradeClass: normalizeClassName(gradeClassRaw),
-              num: numRaw || 1,
-              name: nameRaw || "미상",
-              region: regionRaw,
-              university: univRaw,
-              type: typeRaw,
-              detailType: detailTypeRaw,
-              dept: deptRaw,
-              minExam: minExamRaw,
-              interviewOrEssayDate: dateRaw,
-              step1: step1Raw,
-              finalDate: finalDateRaw,
-              finalStep: finalStepRaw,
-              failReason: failReasonRaw
+              id: newIdCounter,
+              gradeClass: normalizeClassName(row['반'] || row['학급'] || row['학년반'] || "3학년 5반"),
+              num: row['번호'] || row['번'] || 1,
+              name: row['이름'] || row['성명'] || "미상",
+              university: row['대학명'] || row['대학'] || "",
+              detailType: row['세부유형'] || row['전형세부유형'] || "",
+              dept: row['모집단위'] || row['학과'] || "",
+              minExam: row['최저학력기준'] || row['최저'] || "",
+              interviewDate: row['면접일자'] || row['면접/논술일자'] || row['논술일자'] || "",
+              step1: row['1단계'] || "",
+              finalDate: row['최종발표일'] || "",
+              finalStep: row['최종단계'] || row['최종결과'] || "",
+              failReason: row['불합격사유'] || ""
             };
           });
 
-          rawDatabase = parsedRecords;
-          saveToLocalStorage();
+          rawDatabase = parsedData;
           renderTable();
-          alert(`성공적으로 ${parsedRecords.length}건의 대입 진학 데이터를 불러왔습니다.`);
-          
-          // Reset file input
-          event.target.value = '';
+          alert(`엑셀 파일에서 총 ${parsedData.length}건의 데이터를 성공적으로 불러왔습니다.`);
         } catch (err) {
-          alert('엑셀 파일 분석 실패: 엑셀 확장자 및 형식을 확인해 주세요.');
+          alert('엑셀 파일 처리 중 오류가 발생했습니다. 규격 포맷을 확인해 주세요.');
           console.error(err);
         }
       };
       reader.readAsArrayBuffer(file);
     }
 
-    // Export Data to Excel
-    function exportDataToExcel() {
-      if (rawDatabase.length === 0) {
-        alert('내보낼 데이터가 존재하지 않습니다.');
-        return;
-      }
-
+    // Excel Export
+    function exportCurrentClassToExcel() {
       const selectedClass = document.getElementById('classSelect').value;
+      const normalizedTargetClass = normalizeClassName(selectedClass);
 
-      // Filter export data
-      let targetList = rawDatabase;
-      if (selectedClass !== "전체") {
-        const normSelected = normalizeClassName(selectedClass);
-        targetList = rawDatabase.filter(item => normalizeClassName(item.gradeClass) === normSelected);
-      }
+      const exportData = rawDatabase
+        .filter(item => normalizeClassName(item.gradeClass) === normalizedTargetClass)
+        .map(item => ({
+          '반': item.gradeClass,
+          '번호': item.num,
+          '이름': item.name,
+          '대학명': summarizeUniv(item.university) || '',
+          '세부유형': summarizeDetailType(item.detailType) || '',
+          '모집단위': item.dept || '',
+          '최저학력기준': item.minExam || '',
+          '면접or논술일자': formatDate(item.interviewDate) || '',
+          '1단계': item.step1 || '',
+          '최종발표일': formatDate(item.finalDate) || '',
+          '최종단계': item.finalStep || '',
+          '불합격사유': item.failReason || ''
+        }));
 
-      if (targetList.length === 0) {
-        alert('선택한 학급의 데이터가 없습니다.');
+      if (exportData.length === 0) {
+        alert('내보낼 데이터가 없습니다.');
         return;
       }
 
-      // Map to 14 standard export columns
-      const exportRows = targetList.map(item => ({
-        '반': item.gradeClass,
-        '번호': item.num,
-        '이름': item.name,
-        '지역': item.region || '',
-        '대학명': summarizeUniv(item.university) || '',
-        '전형유형': summarizeType(item.type) || '',
-        '세부유형': item.detailType || '',
-        '모집단위': item.dept || '',
-        '최저학력기준': item.minExam || '',
-        '면접 or 논술일자': formatDate(item.interviewOrEssayDate) || '',
-        '1단계': item.step1 || '',
-        '최종발표일': formatDate(item.finalDate) || '',
-        '최종단계': item.finalStep || '',
-        '불합격사유': item.failReason || ''
-      }));
-
-      const worksheet = XLSX.utils.json_to_sheet(exportRows);
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, selectedClass === "전체" ? "전체학급" : selectedClass);
+      XLSX.utils.book_append_sheet(workbook, worksheet, selectedClass);
       
-      const fileName = `2026_대입진학관리_${selectedClass === "전체" ? "전체학급" : selectedClass}.xlsx`;
-      XLSX.writeFile(workbook, fileName);
+      XLSX.writeFile(workbook, `${selectedClass}_대입진학관리.xlsx`);
     }
   </script>
 </body>
