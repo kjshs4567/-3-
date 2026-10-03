@@ -3,1081 +3,1175 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>2026 대입 진학 관리 시스템</title>
-  <!-- Tailwind CSS -->
+  <title>2026 대입 진학 관리 & 누적 통계 시스템</title>
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Chart.js and Chart.js DataLabels Plugin -->
+  <!-- SheetJS (xlsx) CDN for Excel Import/Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-  <!-- Font Awesome Icons -->
+  <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap');
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body {
       font-family: 'Pretendard', sans-serif;
       background-color: #f8fafc;
     }
+    .empty-cell {
+      background-color: #f1f5f9;
+      color: #94a3b8;
+    }
+    .disabled-stage-cell {
+      background-color: #e2e8f0 !important;
+      color: #94a3b8 !important;
+      cursor: not-allowed;
+    }
+    .table-container {
+      overflow-x: auto;
+      max-width: 100%;
+    }
+    /* 지도 호버 스타일 */
     .map-region {
-      transition: all 0.2s ease-in-out;
+      transition: all 0.2s ease;
       cursor: pointer;
     }
     .map-region:hover {
-      fill: #3b82f6 !important;
-      opacity: 0.8;
+      fill: #4f46e5 !important;
+      opacity: 0.9;
     }
     .map-region.active {
-      fill: #1d4ed8 !important;
-      stroke: #1e3a8a;
-      stroke-width: 2.5px;
-    }
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #f1f5f9;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
+      fill: #4338ca !important;
+      stroke: #1e1b4b;
+      stroke-width: 2;
     }
   </style>
 </head>
-<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+<body class="text-slate-800 antialiased bg-slate-100 min-h-screen flex flex-col">
 
-  <!-- Navigation Bar with 3-Role Switcher -->
-  <header class="bg-indigo-900 text-white shadow-lg sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex flex-col md:flex-row items-center justify-between py-3 md:h-16 gap-3 md:gap-0">
-        <div class="flex items-center space-x-3">
-          <div class="bg-indigo-600 p-2 rounded-lg">
-            <i class="fa-solid fa-graduation-cap text-xl text-yellow-400"></i>
-          </div>
-          <div>
-            <h1 class="font-bold text-lg leading-none">고등학교 대입 진학 관리 시스템</h1>
-            <p class="text-xs text-indigo-300 mt-1">University Admission Analytics System</p>
-          </div>
+  <!-- Navigation / Header -->
+  <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600 rounded-lg">
+          <i class="fa-solid fa-graduation-cap text-2xl text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight">2026 대입 진학 관리 & 누적 통계 시스템</h1>
+          <p class="text-xs text-slate-400">장성고등학교 진로진학상담부</p>
+        </div>
+      </div>
+
+      <!-- Current Login Session Bar -->
+      <div id="sessionBar" class="hidden items-center space-x-3">
+        <!-- Year Global Filter -->
+        <div class="flex items-center bg-slate-800 px-3 py-1 rounded-lg border border-slate-700">
+          <span class="text-xs text-slate-400 mr-2 font-medium"><i class="fa-solid fa-calendar-days text-indigo-400 mr-1"></i>입시연도:</span>
+          <select id="globalYearSelect" onchange="onGlobalYearChange()" class="bg-transparent text-xs text-amber-300 font-bold focus:outline-none cursor-pointer">
+            <!-- Dynamic Years -->
+          </select>
         </div>
 
-        <!-- 3-Role Switcher Tabs: [관리자용], [교사용], [학생용] -->
-        <nav class="flex bg-indigo-950/70 p-1 rounded-xl border border-indigo-700/50 text-xs sm:text-sm">
-          <button id="tabAdmin" onclick="switchRole('admin')" class="flex items-center px-3 py-1.5 sm:px-4 sm:py-2 font-medium rounded-lg transition-all duration-200 text-indigo-200 hover:text-white">
-            <i class="fa-solid fa-user-shield mr-1.5 text-amber-400"></i>[관리자용]
-          </button>
-          <button id="tabTeacher" onclick="switchRole('teacher')" class="flex items-center px-3 py-1.5 sm:px-4 sm:py-2 font-medium rounded-lg transition-all duration-200 bg-indigo-600 text-white shadow-sm">
-            <i class="fa-solid fa-chart-pie mr-1.5 text-cyan-300"></i>[교사용] 통합 분석
-          </button>
-          <button id="tabStudent" onclick="switchRole('student')" class="flex items-center px-3 py-1.5 sm:px-4 sm:py-2 font-medium rounded-lg transition-all duration-200 text-indigo-200 hover:text-white">
-            <i class="fa-solid fa-user-graduate mr-1.5 text-emerald-300"></i>[학생용] 개인 검색
-          </button>
-        </nav>
+        <span id="roleBadge" class="text-xs px-2.5 py-1 rounded-full font-bold bg-indigo-500 text-white shadow-sm">
+          학생용
+        </span>
+        <button onclick="openYearManageModal()" id="btnYearManage" class="hidden text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-2.5 py-1.5 rounded transition">
+          <i class="fa-solid fa-calendar-plus mr-1"></i>연도 관리
+        </button>
+        <button onclick="openPasswordChangeModal()" id="btnAdminSetting" class="hidden text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2.5 py-1.5 rounded transition">
+          <i class="fa-solid fa-key mr-1"></i>비밀번호 변경
+        </button>
+        <button onclick="logout()" class="text-xs bg-rose-600/80 hover:bg-rose-600 text-white px-2.5 py-1.5 rounded transition">
+          <i class="fa-solid fa-right-from-bracket mr-1"></i>로그아웃
+        </button>
       </div>
     </div>
   </header>
 
-  <!-- Main Content Container -->
-  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-
-    <!-- ==================== [1. 교사용 통합 분석 VIEW] ==================== -->
-    <div id="viewTeacher" class="space-y-6">
-      
-      <!-- Top Filter Bar -->
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
-        <div class="flex items-center space-x-3">
-          <label for="adminYearSelect" class="font-semibold text-slate-700 text-sm flex items-center">
-            <i class="fa-solid fa-calendar-days text-indigo-600 mr-2"></i>학년도 선택:
-          </label>
-          <select id="adminYearSelect" onchange="updateAdminView()" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 pr-8 font-medium">
-            <option value="2026" selected>2026학년도 (현재)</option>
-            <option value="2025">2025학년도</option>
-            <option value="2024">2024학년도</option>
+  <!-- Login Modal View -->
+  <div id="loginView" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200">
+      <div class="bg-slate-800 text-white p-6 text-center">
+        <i class="fa-solid fa-user-shield text-4xl text-indigo-400 mb-2"></i>
+        <h2 class="text-xl font-bold">진학 시스템 로그인</h2>
+        <p class="text-xs text-slate-400 mt-1">접속 권한 유형을 선택하고 비밀번호를 입력하세요.</p>
+      </div>
+      <form onsubmit="handleLogin(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">사용자 권한</label>
+          <select id="loginRole" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-medium">
+            <option value="student" selected>학생용 (통계 및 대학 검색)</option>
+            <option value="teacher">교사용 (학급별 관리)</option>
+            <option value="admin">관리자용 (연도별 데이터 누적 관리)</option>
           </select>
         </div>
-        <div class="flex items-center space-x-2 text-xs text-slate-500">
-          <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span> 실시간 데이터 연동 완료
-          <span class="ml-2 text-slate-400">|</span>
-          <span>최종 업데이트: 2026. 10. 03</span>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">비밀번호</label>
+          <input type="password" id="loginPassword" placeholder="비밀번호 입력 (기본: 1234)" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
-      </div>
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg text-sm shadow transition">
+          접속하기
+        </button>
+      </form>
+    </div>
+  </div>
 
-      <!-- Top Overview Metrics -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center">
-          <div class="p-3.5 rounded-full bg-blue-50 text-blue-600 mr-4">
-            <i class="fa-solid fa-users text-2xl"></i>
-          </div>
+  <!-- Main Application Container -->
+  <main id="mainApp" class="max-w-7xl mx-auto px-4 py-6 w-full flex-grow hidden">
+
+    <!-- ================================================================= -->
+    <!-- 1. STUDENT VIEW (학생용 화면: 개인정보 없음 / 통계 & 검색 & 지도) -->
+    <!-- ================================================================= -->
+    <div id="studentViewSection" class="space-y-6 hidden">
+      
+      <!-- Top KPI Bar (화살표 연결 지표) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white p-5 rounded-xl shadow-md flex items-center justify-between">
           <div>
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">총 지원 건수</p>
-            <h3 id="statTotalApplications" class="text-2xl font-bold text-slate-800 mt-1">0건</h3>
-          </div>
-        </div>
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center">
-          <div class="p-3.5 rounded-full bg-emerald-50 text-emerald-600 mr-4">
-            <i class="fa-solid fa-circle-check text-2xl"></i>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">최종 합격 건수</p>
-            <h3 id="statTotalPass" class="text-2xl font-bold text-slate-800 mt-1">0건</h3>
-          </div>
-        </div>
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center">
-          <div class="p-3.5 rounded-full bg-amber-50 text-amber-600 mr-4">
-            <i class="fa-solid fa-chart-line text-2xl"></i>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">전체 합격률</p>
-            <h3 id="statPassRate" class="text-2xl font-bold text-slate-800 mt-1">0%</h3>
-          </div>
-        </div>
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center">
-          <div class="p-3.5 rounded-full bg-purple-50 text-purple-600 mr-4">
-            <i class="fa-solid fa-university text-2xl"></i>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">지원 대학 수</p>
-            <h3 id="statTotalUniversities" class="text-2xl font-bold text-slate-800 mt-1">0개교</h3>
-          </div>
-        </div>
-      </div>
-
-      <!-- Charts Row 1: Distribution & Pass Summary -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- 1. 전형별 지원 분포 (누적 도넛 그래프) -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="font-bold text-slate-800 text-base flex items-center">
-              <i class="fa-solid fa-chart-pie text-indigo-600 mr-2"></i>전형별 지원 분포 (누적)
-            </h2>
-            <span class="text-xs text-slate-400 font-normal">원 그래프 레이블 직접 표시</span>
-          </div>
-          <div class="relative w-full h-64 flex justify-center items-center">
-            <canvas id="chartTypeDistribution"></canvas>
-          </div>
-        </div>
-
-        <!-- 2. 전형별 합격률 (바 차트) -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="font-bold text-slate-800 text-base flex items-center">
-              <i class="fa-solid fa-chart-bar text-indigo-600 mr-2"></i>전형 유형별 합격률 현황
-            </h2>
-            <span class="text-xs text-slate-400 font-normal">합격 / 불합격 비율</span>
-          </div>
-          <div class="relative w-full h-64">
-            <canvas id="chartTypePassRate"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- Summary Tables Row: Side-by-Side (전형 유형별 & 지역권별) -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- 전형 유형별 합격 요약 표 -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <h2 class="font-bold text-slate-800 text-base mb-4 flex items-center">
-            <i class="fa-solid fa-table-list text-indigo-600 mr-2"></i>전형 유형별 합격 요약 표
-          </h2>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left text-slate-600">
-              <thead class="text-xs text-slate-700 uppercase bg-slate-100 rounded-lg">
-                <tr>
-                  <th class="px-3 py-2.5">전형 유형</th>
-                  <th class="px-3 py-2.5 text-center">지원 건수</th>
-                  <th class="px-3 py-2.5 text-center">합격</th>
-                  <th class="px-3 py-2.5 text-center">불합격</th>
-                  <th class="px-3 py-2.5 text-right">합격률</th>
-                </tr>
-              </thead>
-              <tbody id="tableTypeSummary" class="divide-y divide-slate-100">
-                <!-- Dynamic Content -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- 지역권별 합격 요약 표 -->
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <h2 class="font-bold text-slate-800 text-base mb-4 flex items-center">
-            <i class="fa-solid fa-map-location-dot text-indigo-600 mr-2"></i>지역권별 합격 요약 표
-          </h2>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left text-slate-600">
-              <thead class="text-xs text-slate-700 uppercase bg-slate-100 rounded-lg">
-                <tr>
-                  <th class="px-3 py-2.5">지역권</th>
-                  <th class="px-3 py-2.5 text-center">지원 대학 수</th>
-                  <th class="px-3 py-2.5 text-center">지원 건수</th>
-                  <th class="px-3 py-2.5 text-center">합격</th>
-                  <th class="px-3 py-2.5 text-right">합격률</th>
-                </tr>
-              </thead>
-              <tbody id="tableRegionSummary" class="divide-y divide-slate-100">
-                <!-- Dynamic Content -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Interactive Region Map & University Search Section -->
-      <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-        <div class="border-b border-slate-200 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 class="font-bold text-slate-800 text-lg flex items-center">
-              <i class="fa-solid fa-magnifying-glass-location text-indigo-600 mr-2"></i>지역별 대학 지도 & 대학 검색
-            </h2>
-            <p class="text-xs text-slate-500 mt-1">지도의 지역을 클릭하거나 대학 검색창을 통해 상세 지원 내역을 조회하세요.</p>
-          </div>
-
-          <!-- 대학 검색창 -->
-          <div class="relative min-w-[280px]">
-            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+            <p class="text-xs text-indigo-200 font-medium">총 지원 및 합격 현황</p>
+            <div class="flex items-center gap-2 mt-1">
+              <span id="kpiTotalApps" class="text-2xl font-black text-slate-200">0지원</span>
+              <i class="fa-solid fa-arrow-right-long text-amber-400 text-xl"></i>
+              <span id="kpiTotalPass" class="text-2xl font-black text-emerald-400">0합격</span>
             </div>
-            <input type="text" id="univSearchInput" onkeyup="handleSearchUniv(event)" placeholder="대학명 검색 (예: 서울대, 연세대, 충남대)" class="w-full pl-10 pr-10 py-2 bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 font-medium">
-            <button onclick="executeUnivSearch()" class="absolute inset-y-0 right-0 px-3 bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700 text-xs">
-              검색
-            </button>
+          </div>
+          <div class="p-3 bg-indigo-700/50 rounded-lg"><i class="fa-solid fa-chart-line text-2xl text-amber-300"></i></div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-500 font-medium">전체 최종 합격률</p>
+            <p id="kpiPassRate" class="text-3xl font-extrabold text-indigo-600 mt-1">0%</p>
+          </div>
+          <div class="p-3 bg-indigo-50 rounded-lg text-indigo-600"><i class="fa-solid fa-percent text-2xl"></i></div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-500 font-medium">누적 대학 수 / 전형 수</p>
+            <p id="kpiUnivCount" class="text-2xl font-bold text-slate-800 mt-1">0개 대학</p>
+          </div>
+          <div class="p-3 bg-amber-50 rounded-lg text-amber-600"><i class="fa-solid fa-building-columns text-2xl"></i></div>
+        </div>
+      </div>
+
+      <!-- Top Section: Donut Chart + Breakdown Table -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Donut Chart -->
+        <div class="lg:col-span-5 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+          <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
+            <i class="fa-solid fa-chart-pie text-indigo-600"></i> 전형별 지원 분포 (누적)
+          </h3>
+          <div class="relative w-full h-64 flex items-center justify-center">
+            <canvas id="typeDonutChart"></canvas>
           </div>
         </div>
 
-        <!-- Map & Interactive Display Split -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- Breakdown Table -->
+        <div class="lg:col-span-7 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+          <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3">
+            <i class="fa-solid fa-list-check text-indigo-600"></i> 전형 유형별 합격 요약 표
+          </h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 text-slate-700">
+                  <th class="p-2.5 font-bold">전형 유형</th>
+                  <th class="p-2.5 text-center font-bold">지원 건수</th>
+                  <th class="p-2.5 text-center font-bold">1차 합격</th>
+                  <th class="p-2.5 text-center font-bold">최종 합격</th>
+                  <th class="p-2.5 text-center font-bold">합격률</th>
+                </tr>
+              </thead>
+              <tbody id="typeSummaryTableBody" class="divide-y divide-slate-100">
+                <!-- Dynamic Rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Bar for Universities -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center space-x-2 w-full md:w-auto flex-1">
+          <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+          <input type="text" id="univSearchInput" onkeyup="filterStudentUnivSearch()" placeholder="대학명을 검색하세요 (예: 서울대, 고려대, 성균관대...)" class="w-full border-none text-sm focus:outline-none p-1 font-medium">
+        </div>
+        <button onclick="clearUnivSearch()" class="text-xs text-slate-500 hover:text-slate-800 bg-slate-100 px-3 py-1.5 rounded-lg">검색 초기화</button>
+      </div>
+
+      <!-- Middle/Bottom Section: Interactive Map + Detailed Search Table -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Interactive Map (Korea SVG Map) -->
+        <div class="lg:col-span-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-map-location-dot text-indigo-600"></i> 지역별 대학 지도
+            </h3>
+            <span id="selectedRegionBadge" class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold">전체 지역</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mb-3">지도의 지역을 클릭하면 해당 지역 대학 지원 결과가 필터링됩니다.</p>
           
-          <!-- SVG Korea Map (Left Column) -->
-          <div class="lg:col-span-5 bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center">
-            <div class="text-xs font-semibold text-slate-500 mb-2 w-full flex justify-between items-center">
-              <span>대한민국 지역 클릭</span>
-              <button onclick="resetMapSelection()" class="text-indigo-600 hover:underline text-xs flex items-center">
-                <i class="fa-solid fa-rotate-left mr-1"></i>선택 초기화
-              </button>
-            </div>
-            
-            <!-- Interactive SVG Map -->
-            <svg class="w-full max-w-[280px] h-auto drop-shadow-md" viewBox="0 0 350 450" xmlns="http://www.w3.org/2000/svg">
-              <g stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <!-- 수도권 -->
-                <path id="region-수도권" class="map-region fill-indigo-300" d="M120,80 L180,70 L200,110 L170,160 L110,140 Z" onclick="selectRegion('수도권')">
-                  <title>수도권 (서울/경기/인천)</title>
-                </path>
-                <!-- 강원 -->
-                <path id="region-강원" class="map-region fill-blue-200" d="M180,70 L280,60 L290,140 L200,110 Z" onclick="selectRegion('강원')">
-                  <title>강원권</title>
-                </path>
-                <!-- 충청 -->
-                <path id="region-충청" class="map-region fill-teal-200" d="M110,140 L170,160 L210,190 L160,250 L100,200 Z" onclick="selectRegion('충청')">
-                  <title>충청권 (대전/세종/충남/충북)</title>
-                </path>
-                <!-- 영남 -->
-                <path id="region-영남" class="map-region fill-sky-300" d="M200,110 L290,140 L310,270 L220,310 L160,250 L210,190 Z" onclick="selectRegion('영남')">
-                  <title>영남권 (부산/대구/울산/경남/경북)</title>
-                </path>
-                <!-- 호남 -->
-                <path id="region-호남" class="map-region fill-emerald-200" d="M100,200 L160,250 L220,310 L150,370 L80,310 Z" onclick="selectRegion('호남')">
-                  <title>호남권 (광주/전남/전북)</title>
-                </path>
-                <!-- 제주 -->
-                <path id="region-제주" class="map-region fill-cyan-200" d="M100,400 Q130,390 150,405 Q140,430 100,425 Z" onclick="selectRegion('제주')">
-                  <title>제주권</title>
-                </path>
-              </g>
-              <text x="142" y="115" class="text-xs font-bold fill-slate-800 pointer-events-none">수도권</text>
-              <text x="225" y="100" class="text-xs font-bold fill-slate-800 pointer-events-none">강원</text>
-              <text x="135" y="195" class="text-xs font-bold fill-slate-800 pointer-events-none">충청</text>
-              <text x="235" y="215" class="text-xs font-bold fill-slate-800 pointer-events-none">영남</text>
-              <text x="125" y="280" class="text-xs font-bold fill-slate-800 pointer-events-none">호남</text>
-              <text x="112" y="415" class="text-xs font-bold fill-slate-800 pointer-events-none">제주</text>
+          <div class="flex-grow flex items-center justify-center p-2 bg-slate-50 rounded-lg border border-slate-100">
+            <!-- Simplified Interactive Korea Map SVG -->
+            <svg viewBox="0 0 300 400" class="w-full h-72">
+              <rect x="50" y="40" width="80" height="50" rx="8" class="map-region fill-indigo-100 stroke-indigo-300" onclick="selectRegion('서울')" data-region="서울"/>
+              <text x="90" y="70" text-anchor="middle" class="text-[11px] font-bold fill-indigo-900 pointer-events-none">서울</text>
+
+              <rect x="140" y="30" width="100" height="80" rx="8" class="map-region fill-slate-200 stroke-slate-300" onclick="selectRegion('경기/인천')" data-region="경기/인천"/>
+              <text x="190" y="75" text-anchor="middle" class="text-[11px] font-bold fill-slate-700 pointer-events-none">경기/인천</text>
+
+              <rect x="150" y="120" width="100" height="70" rx="8" class="map-region fill-slate-200 stroke-slate-300" onclick="selectRegion('강원')" data-region="강원"/>
+              <text x="200" y="160" text-anchor="middle" class="text-[11px] font-bold fill-slate-700 pointer-events-none">강원</text>
+
+              <rect x="100" y="120" width="45" height="60" rx="8" class="map-region fill-slate-200 stroke-slate-300" onclick="selectRegion('충북')" data-region="충북"/>
+              <text x="122" y="155" text-anchor="middle" class="text-[10px] font-bold fill-slate-700 pointer-events-none">충북</text>
+
+              <rect x="40" y="120" width="55" height="60" rx="8" class="map-region fill-slate-200 stroke-slate-300" onclick="selectRegion('충남/대전')" data-region="충남/대전"/>
+              <text x="67" y="155" text-anchor="middle" class="text-[10px] font-bold fill-slate-700 pointer-events-none">충남/대전</text>
+
+              <rect x="40" y="190" width="80" height="70" rx="8" class="map-region fill-slate-200 stroke-slate-300" onclick="selectRegion('전북')" data-region="전북"/>
+              <text x="80" y="230" text-anchor="middle" class="text-[11px] font-bold fill-slate-700 pointer-events-none">전북</text>
+
+              <rect x="40" y="270" width="80" height="70" rx="8" class="map-region fill-slate-200 stroke-slate-300" onclick="selectRegion('전남/광주')" data-region="전남/광주"/>
+              <text x="80" y="310" text-anchor="middle" class="text-[11px] font-bold fill-slate-700 pointer-events-none">전남/광주</text>
+
+              <rect x="130" y="200" width="60" height="70" rx="8" class="map-region fill-slate-200 stroke-slate-300" onclick="selectRegion('대구/경북')" data-region="대구/경북"/>
+              <text x="160" y="240" text-anchor="middle" class="text-[10px] font-bold fill-slate-700 pointer-events-none">대구/경북</text>
+
+              <rect x="195" y="200" width="65" height="100" rx="8" class="map-region fill-slate-200 stroke-slate-300" onclick="selectRegion('부산/울산/경남')" data-region="부산/울산/경남"/>
+              <text x="227" y="250" text-anchor="middle" class="text-[10px] font-bold fill-slate-700 pointer-events-none">부산/경남</text>
+
+              <rect x="50" y="350" width="60" height="30" rx="6" class="map-region fill-slate-200 stroke-slate-300" onclick="selectRegion('제주')" data-region="제주"/>
+              <text x="80" y="370" text-anchor="middle" class="text-[10px] font-bold fill-slate-700 pointer-events-none">제주</text>
             </svg>
-            <p class="text-[11px] text-slate-400 mt-2 text-center">지도의 각 영역을 선택하여 해당 지역 지원 내역 확인</p>
           </div>
-
-          <!-- Dynamic Panel Box (Right Column) -->
-          <div class="lg:col-span-7 space-y-4">
-            <div id="activeFilterBadge" class="hidden items-center justify-between bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-xs font-semibold text-indigo-800">
-              <span id="activeFilterText"><i class="fa-solid fa-filter mr-1.5"></i>필터 적용 중</span>
-              <button onclick="clearSearchAndRegion()" class="text-xs text-indigo-600 hover:text-indigo-900 underline font-normal">전체 해제</button>
-            </div>
-
-            <!-- Dynamic Container -->
-            <div id="dynamicResultContainer" class="bg-slate-50 border border-slate-200 rounded-xl p-6 min-h-[320px] flex flex-col justify-center items-center text-center">
-              
-              <!-- Initial Guide State -->
-              <div id="initialGuideBox" class="space-y-3 py-8">
-                <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-2xl">
-                  <i class="fa-solid fa-hand-pointer"></i>
-                </div>
-                <h3 class="text-base font-bold text-slate-700">검색 또는 지역 선택 안내</h3>
-                <p class="text-xs text-slate-500 max-w-sm leading-relaxed">
-                  지도의 특정 지역을 클릭하거나 상단 대학 검색창에서 대학명을 검색하면<br>
-                  <span class="font-semibold text-indigo-600">지원 대학 집계 및 상세 학생 내역</span>이 표시됩니다.
-                </p>
-              </div>
-
-              <!-- Region University Summary Table Container (Hidden by default) -->
-              <div id="regionUnivListContainer" class="w-full text-left hidden space-y-4">
-                <div class="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <h3 id="regionListTitle" class="font-bold text-slate-800 text-sm flex items-center">
-                    <i class="fa-solid fa-building-columns text-indigo-600 mr-2"></i>지역 지원 대학 목록
-                  </h3>
-                  <span class="text-xs text-slate-500">대학 클릭 시 상세 학생 지원 내역 노출</span>
-                </div>
-                <div class="overflow-x-auto max-h-64">
-                  <table class="w-full text-xs text-left text-slate-600">
-                    <thead class="text-[11px] text-slate-700 uppercase bg-slate-200 sticky top-0">
-                      <tr>
-                        <th class="px-3 py-2">지원 대학명</th>
-                        <th class="px-2 py-2 text-center bg-blue-100/60">학생부교과</th>
-                        <th class="px-2 py-2 text-center bg-purple-100/60">학생부종합</th>
-                        <th class="px-2 py-2 text-center bg-amber-100/60">논술</th>
-                        <th class="px-2 py-2 text-center bg-rose-100/60">실기/실적</th>
-                        <th class="px-2 py-2 text-center font-bold">총 지원수</th>
-                      </tr>
-                    </thead>
-                    <tbody id="regionUnivTableBody" class="divide-y divide-slate-200 bg-white">
-                      <!-- Dynamic Region Univ Rows -->
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-            </div>
-          </div>
+          <button onclick="selectRegion('전체')" class="mt-3 w-full py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold transition">
+            지역 선택 전체 해제
+          </button>
         </div>
 
-        <!-- 대학 상세 지원 학생 내역 테이블 -->
-        <div id="univDetailTableContainer" class="hidden bg-white rounded-xl border border-indigo-200 p-5 shadow-sm space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h3 id="univDetailTitle" class="font-bold text-slate-800 text-base flex items-center">
-                <i class="fa-solid fa-graduation-cap text-indigo-600 mr-2"></i><span>상세 지원 내역</span>
-              </h3>
-              <p class="text-xs text-slate-500 mt-0.5">선택한 대학에 지원한 학생들의 실제 수시 전형 상세 데이터입니다.</p>
-            </div>
-            <span id="univDetailBadge" class="bg-indigo-100 text-indigo-800 text-xs px-2.5 py-1 rounded-full font-semibold">지원 0건</span>
-          </div>
+        <!-- Detailed Results Table (No Personal Info) -->
+        <div class="lg:col-span-8 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+          <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3">
+            <i class="fa-solid fa-table-list text-indigo-600"></i> 대학별 수시 지원 및 최종 결과 목록
+          </h3>
 
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs text-left text-slate-600">
-              <thead class="text-[11px] text-slate-700 uppercase bg-indigo-50 border-y border-indigo-100">
-                <tr>
-                  <th class="px-3 py-2.5">학생명</th>
-                  <th class="px-3 py-2.5">세부유형</th>
-                  <th class="px-3 py-2.5 text-center">모집인원</th>
-                  <th class="px-3 py-2.5">최저학력기준</th>
-                  <th class="px-3 py-2.5 text-center">1단계</th>
-                  <th class="px-3 py-2.5 text-center">최종단계</th>
-                  <th class="px-3 py-2.5">불합격사유</th>
+          <div class="table-container flex-grow">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold uppercase">
+                  <th class="py-2.5 px-3 text-center w-24">대학명</th>
+                  <th class="py-2.5 px-3 text-center w-28">세부유형</th>
+                  <th class="py-2.5 px-3 text-center w-32">모집단위</th>
+                  <th class="py-2.5 px-2 text-center w-24">최저학력기준</th>
+                  <th class="py-2.5 px-3 text-center w-28">면접/논술일자</th>
+                  <th class="py-2.5 px-2 text-center w-16 bg-indigo-50/50">1단계</th>
+                  <th class="py-2.5 px-2 text-center w-24">최종발표일</th>
+                  <th class="py-2.5 px-2 text-center w-16 bg-indigo-50/50">최종단계</th>
+                  <th class="py-2.5 px-3 text-center">불합격사유</th>
                 </tr>
               </thead>
-              <tbody id="univDetailTableBody" class="divide-y divide-slate-100">
-                <!-- Dynamic Detailed Rows -->
+              <tbody id="studentResultTableBody" class="divide-y divide-slate-200">
+                <!-- Dynamic Anonymous Rows -->
               </tbody>
             </table>
           </div>
         </div>
-
       </div>
-
     </div>
 
-    <!-- ==================== [2. 관리자용 VIEW] ==================== -->
-    <div id="viewAdmin" class="hidden space-y-6">
-      <div class="bg-amber-500/10 border border-amber-300 rounded-xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div class="flex items-center space-x-3">
-          <div class="p-3 bg-amber-500 text-white rounded-lg">
-            <i class="fa-solid fa-user-shield text-xl"></i>
+
+    <!-- ================================================================= -->
+    <!-- 2. TEACHER / ADMIN VIEW (교사/관리자용 학급별 데이터 관리 표) -->
+    <!-- ================================================================= -->
+    <div id="editorViewSection" class="space-y-6 hidden">
+      
+      <!-- Top Control Bar -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-2">
+            <label for="classSelect" class="text-sm font-semibold text-slate-700">학급 선택:</label>
+            <select id="classSelect" onchange="renderEditorTable()" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+              <option value="3학년 1반">3학년 1반</option>
+              <option value="3학년 2반">3학년 2반</option>
+              <option value="3학년 3반">3학년 3반</option>
+              <option value="3학년 4반">3학년 4반</option>
+              <option value="3학년 5반" selected>3학년 5반</option>
+              <option value="3학년 6반">3학년 6반</option>
+            </select>
           </div>
-          <div>
-            <h2 class="text-lg font-bold text-slate-800">최고 관리자 콘솔 (Administrator Management)</h2>
-            <p class="text-xs text-slate-600 mt-0.5">대입 지원 전체 데이터 수정/입력 및 시스템 설정을 수행합니다.</p>
-          </div>
+          <span id="studentCountBadge" class="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-bold border border-indigo-100">
+            총 학생수: 0명
+          </span>
         </div>
+
         <div class="flex items-center space-x-2">
-          <button onclick="openAddModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg flex items-center shadow-sm">
-            <i class="fa-solid fa-plus mr-1.5"></i>신규 지원 데이터 등록
+          <button onclick="openRecordModal()" class="bg-indigo-600 hover:bg-indigo-700 text-xs text-white font-semibold px-3 py-2 rounded-lg transition shadow flex items-center gap-1.5">
+            <i class="fa-solid fa-plus"></i>
+            <span>지원 내역 추가</span>
+          </button>
+          <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow">
+            <i class="fa-solid fa-file-excel text-emerald-400"></i>
+            <span>엑셀 업로드</span>
+            <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
+          </label>
+          <button onclick="exportCurrentClassToExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-semibold px-3 py-2 rounded-lg transition shadow flex items-center gap-1.5">
+            <i class="fa-solid fa-download"></i>
+            <span>엑셀 내보내기</span>
           </button>
         </div>
       </div>
 
-      <!-- Admin Data Control Table -->
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 class="font-bold text-slate-800 text-base flex items-center">
-            <i class="fa-solid fa-database text-indigo-600 mr-2"></i>전체 대입 지원 데이터 관리 (수정/삭제)
-          </h3>
-          <span class="text-xs text-slate-400">데이터 수정을 완료하면 통합 분석 및 학생용 조회에 즉시 반영됩니다.</span>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs text-left text-slate-600">
-            <thead class="text-[11px] text-slate-700 uppercase bg-slate-100">
-              <tr>
-                <th class="px-3 py-3">학년도</th>
-                <th class="px-3 py-3">학생명</th>
-                <th class="px-3 py-3">지원 대학</th>
-                <th class="px-3 py-3">전형</th>
-                <th class="px-3 py-3">세부유형</th>
-                <th class="px-3 py-3 text-center">1단계</th>
-                <th class="px-3 py-3 text-center">최종결과</th>
-                <th class="px-3 py-3 text-center">작업</th>
+      <!-- Main Editor Table -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="table-container">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                <th class="py-3 px-2 text-center w-12 border-r border-slate-200">반</th>
+                <th class="py-3 px-2 text-center w-12 border-r border-slate-200">번호</th>
+                <th class="py-3 px-3 text-center w-20 border-r border-slate-200">이름</th>
+                <th class="py-3 px-3 text-center w-28 border-r border-slate-200">대학명</th>
+                <th class="py-3 px-3 text-center w-28 border-r border-slate-200">세부유형</th>
+                <th class="py-3 px-3 text-center w-28 border-r border-slate-200">모집단위</th>
+                <th class="py-3 px-2 text-center w-24 border-r border-slate-200">최저학력기준</th>
+                <th class="py-3 px-3 text-center w-28 border-r border-slate-200">면접/논술일자</th>
+                <th class="py-3 px-2 text-center w-20 border-r border-slate-200 bg-indigo-50/50">1단계</th>
+                <th class="py-3 px-2 text-center w-24 border-r border-slate-200">최종발표일</th>
+                <th class="py-3 px-2 text-center w-20 border-r border-slate-200 bg-indigo-50/50">최종단계</th>
+                <th class="py-3 px-3 text-center min-w-[120px] border-r border-slate-200">불합격사유</th>
+                <th class="py-3 px-2 text-center w-16">관리</th>
               </tr>
             </thead>
-            <tbody id="adminDataTableBody" class="divide-y divide-slate-100">
-              <!-- Dynamic Admin Table Records -->
+            <tbody id="editorTableBody" class="divide-y divide-slate-200">
+              <!-- Dynamic Data Rows -->
             </tbody>
           </table>
         </div>
       </div>
     </div>
-
-    <!-- ==================== [3. 학생용 개인 검색 VIEW] ==================== -->
-    <div id="viewStudent" class="hidden space-y-6">
-      
-      <!-- Student Header Bar with Year Filter -->
-      <div class="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-6 rounded-xl shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span class="bg-emerald-500/20 text-emerald-300 text-xs px-2.5 py-1 rounded-md font-medium uppercase tracking-wider border border-emerald-500/30">
-            <i class="fa-solid fa-circle-check mr-1"></i>Student Portal
-          </span>
-          <h2 class="text-xl font-bold mt-2">나의 수시 지원 및 합격 진단 목록</h2>
-          <p class="text-xs text-indigo-200 mt-1">학년도 필터를 선택하여 연도별 나의 수시 6회 지원 결과 및 합격 현황을 조회하세요.</p>
-        </div>
-
-        <!-- 학생용 연도별 검색 필터 -->
-        <div class="flex items-center space-x-3 bg-white/10 p-2.5 rounded-lg border border-white/20">
-          <label for="studentYearSelect" class="font-semibold text-white text-xs whitespace-nowrap flex items-center">
-            <i class="fa-solid fa-calendar-check mr-1.5 text-yellow-300"></i>학년도 검색:
-          </label>
-          <select id="studentYearSelect" onchange="updateStudentView()" class="bg-slate-900 border border-indigo-400 text-white text-xs rounded-md focus:ring-indigo-300 focus:border-indigo-300 block p-2 font-medium">
-            <option value="2026" selected>2026학년도 (현재)</option>
-            <option value="2025">2025학년도</option>
-            <option value="2024">2024학년도</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Student Stats Overview -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-xs text-slate-400 font-medium">선택 연도 지원 횟수</p>
-            <p id="studentStatTotal" class="text-xl font-bold text-slate-800 mt-0.5">0 / 6</p>
-          </div>
-          <div class="p-3 bg-indigo-50 text-indigo-600 rounded-lg"><i class="fa-solid fa-file-signature"></i></div>
-        </div>
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-xs text-slate-400 font-medium">최종 합격 대학 수</p>
-            <p id="studentStatPass" class="text-xl font-bold text-emerald-600 mt-0.5">0개교</p>
-          </div>
-          <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg"><i class="fa-solid fa-award"></i></div>
-        </div>
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-xs text-slate-400 font-medium">충원 합격 대기 / 예비</p>
-            <p id="studentStatWait" class="text-xl font-bold text-amber-600 mt-0.5">0건</p>
-          </div>
-          <div class="p-3 bg-amber-50 text-amber-600 rounded-lg"><i class="fa-solid fa-clock-rotate-left"></i></div>
-        </div>
-      </div>
-
-      <!-- Student Application Records Table -->
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 class="font-bold text-slate-800 text-base flex items-center">
-            <i class="fa-solid fa-list-check text-indigo-600 mr-2"></i>
-            <span id="studentTableTitle">2026학년도 수시 지원 및 결과 상세</span>
-          </h3>
-          <span class="text-xs text-slate-400">최대 6회 수시 지원 내역</span>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs text-left text-slate-600">
-            <thead class="text-[11px] text-slate-700 uppercase bg-slate-100">
-              <tr>
-                <th class="px-3 py-3">대학명</th>
-                <th class="px-3 py-3">전형명</th>
-                <th class="px-3 py-3">세부유형</th>
-                <th class="px-3 py-3 text-center">모집인원</th>
-                <th class="px-3 py-3">최저학력기준</th>
-                <th class="px-3 py-3 text-center">1단계 결과</th>
-                <th class="px-3 py-3 text-center">최종 결과</th>
-                <th class="px-3 py-3">불합격사유 및 비고</th>
-              </tr>
-            </thead>
-            <tbody id="studentTableBody" class="divide-y divide-slate-100">
-              <!-- Dynamic Student Records -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-
   </main>
 
-  <!-- Admin Data Add Modal Placeholder -->
-  <div id="addModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-    <div class="bg-white rounded-xl p-6 w-full max-w-md space-y-4 shadow-xl">
-      <h3 class="text-base font-bold text-slate-800">신규 대입 지원 내역 등록</h3>
-      <p class="text-xs text-slate-500">학생의 대입 수시 지원 데이터를 추가합니다.</p>
-      <form onsubmit="handleDataSubmit(event)" class="space-y-3 text-xs">
+  <!-- Add / Edit Record Modal -->
+  <div id="recordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-xl overflow-hidden border border-slate-200">
+      <div class="bg-indigo-600 px-6 py-4 text-white flex justify-between items-center">
+        <h3 id="modalTitle" class="font-bold text-base">지원 내역 추가/수정</h3>
+        <button onclick="closeRecordModal()" class="text-white hover:text-indigo-200 text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form onsubmit="saveRecord(event)" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <input type="hidden" id="editRecordId">
+        
+        <div class="grid grid-cols-4 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">입시연도</label>
+            <select id="inputYear" class="w-full border rounded p-2 text-xs bg-white font-bold text-indigo-700"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">학급</label>
+            <select id="inputGradeClass" class="w-full border rounded p-2 text-xs">
+              <option value="3학년 1반">3학년 1반</option>
+              <option value="3학년 2반">3학년 2반</option>
+              <option value="3학년 3반">3학년 3반</option>
+              <option value="3학년 4반">3학년 4반</option>
+              <option value="3학년 5반" selected>3학년 5반</option>
+              <option value="3학년 6반">3학년 6반</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">번호</label>
+            <input type="number" id="inputNum" required min="1" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">이름</label>
+            <input type="text" id="inputName" required class="w-full border rounded p-2 text-xs">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">대학명</label>
+            <input type="text" id="inputUniversity" placeholder="예: 서울대학교" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">세부유형</label>
+            <input type="text" id="inputDetailType" placeholder="예: 일반전형, 학교장추천" class="w-full border rounded p-2 text-xs">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">모집단위</label>
+            <input type="text" id="inputDept" placeholder="예: 컴퓨터공학부" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">최저학력기준</label>
+            <input type="text" id="inputMinExam" placeholder="예: 3개합 7이내" class="w-full border rounded p-2 text-xs">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">면접/논술일자</label>
+            <input type="text" id="inputInterviewDate" placeholder="예: 2026-11-21 또는 기간" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">1단계 결과</label>
+            <select id="inputStep1" class="w-full border rounded p-2 text-xs">
+              <option value="">-</option>
+              <option value="1차합격">1차합격</option>
+              <option value="1차불합">1차불합</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">최종발표일</label>
+            <input type="text" id="inputFinalDate" placeholder="예: 2026-12-15" class="w-full border rounded p-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">최종단계 결과</label>
+            <select id="inputFinalStep" class="w-full border rounded p-2 text-xs">
+              <option value="">-</option>
+              <option value="합격">합격</option>
+              <option value="불합격">불합격</option>
+              <option value="추합">추합</option>
+            </select>
+          </div>
+        </div>
+
         <div>
-          <label class="font-semibold text-slate-700">학생명</label>
-          <input type="text" id="modalStudent" required class="w-full mt-1 p-2 border rounded-lg">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">불합격사유</label>
+          <input type="text" id="inputFailReason" placeholder="예: 최저 미충족" class="w-full border rounded p-2 text-xs">
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="closeRecordModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded text-xs text-slate-700 font-semibold">취소</button>
+          <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-xs text-white font-bold">저장하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Admin Year Management Modal -->
+  <div id="yearManageModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
+      <div class="bg-slate-800 px-6 py-4 text-white flex justify-between items-center">
+        <h3 class="font-bold text-base"><i class="fa-solid fa-calendar-plus text-emerald-400 mr-2"></i>입시 연도 누적 관리</h3>
+        <button onclick="closeYearManageModal()" class="text-white hover:text-slate-300"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="p-6 space-y-4">
+        <!-- Add New Year Form -->
+        <div class="flex gap-2">
+          <input type="text" id="newYearInput" placeholder="예: 2027학년도" class="flex-1 border rounded p-2 text-xs font-bold">
+          <button onclick="addNewYear()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded">연도 추가</button>
+        </div>
+        
+        <!-- Year List -->
+        <div class="border rounded-lg p-3 bg-slate-50 space-y-2 max-h-48 overflow-y-auto" id="yearListContainer">
+          <!-- Dynamic Year Rows -->
+        </div>
+
+        <p class="text-[11px] text-slate-400">※ 연도를 추가하면 엑셀 파일 업로드 시 해당 연도로 선택하여 축적할 수 있습니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Password Change Modal -->
+  <div id="passwordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
+      <div class="bg-slate-800 px-6 py-4 text-white flex justify-between items-center">
+        <h3 class="font-bold text-base"><i class="fa-solid fa-shield-halved text-amber-400 mr-2"></i>비밀번호 설정 변경</h3>
+        <button onclick="closePasswordModal()" class="text-white hover:text-slate-300"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form onsubmit="savePasswords(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">학생용 비밀번호</label>
+          <input type="text" id="pwdStudent" required class="w-full border rounded p-2 text-xs font-mono">
         </div>
         <div>
-          <label class="font-semibold text-slate-700">대학명</label>
-          <input type="text" id="modalUniv" required class="w-full mt-1 p-2 border rounded-lg">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">교사용 비밀번호</label>
+          <input type="text" id="pwdTeacher" required class="w-full border rounded p-2 text-xs font-mono">
         </div>
         <div>
-          <label class="font-semibold text-slate-700">지역권</label>
-          <select id="modalRegion" class="w-full mt-1 p-2 border rounded-lg">
-            <option value="수도권">수도권</option>
-            <option value="충청">충청권</option>
-            <option value="호남">호남권</option>
-            <option value="영남">영남권</option>
-            <option value="강원">강원권</option>
-            <option value="제주">제주권</option>
-          </select>
-        </div>
-        <div>
-          <label class="font-semibold text-slate-700">전형유형</label>
-          <select id="modalType" class="w-full mt-1 p-2 border rounded-lg">
-            <option value="학생부교과">학생부교과</option>
-            <option value="학생부종합">학생부종합</option>
-            <option value="논술">논술</option>
-            <option value="실기/실적">실기/실적</option>
-          </select>
-        </div>
-        <div>
-          <label class="font-semibold text-slate-700">최종 결과</label>
-          <select id="modalPass" class="w-full mt-1 p-2 border rounded-lg">
-            <option value="최종합격">최종합격</option>
-            <option value="불합격">불합격</option>
-          </select>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">관리자용 비밀번호</label>
+          <input type="text" id="pwdAdmin" required class="w-full border rounded p-2 text-xs font-mono">
         </div>
         <div class="flex justify-end space-x-2 pt-2">
-          <button type="button" onclick="closeAddModal()" class="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-md">취소</button>
-          <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white rounded-md font-semibold">저장</button>
+          <button type="button" onclick="closePasswordModal()" class="px-4 py-2 bg-slate-200 rounded text-xs font-semibold">취소</button>
+          <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded text-xs font-bold">변경사항 저장</button>
         </div>
       </form>
     </div>
   </div>
 
   <script>
-    // Sample Data Sets (2024, 2025, 2026)
-    const mockDatabase = {
-      "2026": [
-        { id: 1, student: "김철수", univ: "서울대학교", region: "수도권", type: "학생부종합", subType: "지역균형", quota: 12, minScore: "국/수/영/탐 3개 합 7", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 2, student: "이영희", univ: "연세대학교", region: "수도권", type: "학생부종합", subType: "활동우수형", quota: 25, minScore: "국/수1/탐1 합 5 (영어 2)", step1: "합격", stepFinal: "불합격", reason: "면접 점수 미달" },
-        { id: 3, student: "박민수", univ: "고려대학교", region: "수도권", type: "학생부교과", subType: "학교추천", quota: 18, minScore: "국/수/영/탐 3개 합 6", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 4, student: "정수진", univ: "성균관대학교", region: "수도권", type: "논술", subType: "논술우수", quota: 30, minScore: "국/수/탐1/탐2 3개 합 6", step1: "해당없음", stepFinal: "불합격", reason: "수능 최저 미충족" },
-        { id: 5, student: "최동현", univ: "충남대학교", region: "충청", type: "학생부교과", subType: "일반전형", quota: 40, minScore: "국/수/영 3개 합 11", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 6, student: "강서연", univ: "카이스트", region: "충청", type: "학생부종합", subType: "창의도전", quota: 15, minScore: "없음", step1: "합격", stepFinal: "불합격", reason: "2단계 심층면접 점수 부족" },
-        { id: 7, student: "윤지훈", univ: "전남대학교", region: "호남", type: "학생부교과", subType: "지역인재", quota: 35, minScore: "국/수/영 3개 합 9", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 8, student: "임하은", univ: "경북대학교", region: "영남", type: "학생부종합", subType: "일반학생", quota: 22, minScore: "국/수/탐 3개 합 8", step1: "불합격", stepFinal: "불합격", reason: "1단계 서류평가 순위 밖" },
-        { id: 9, student: "한지민", univ: "부산대학교", region: "영남", type: "학생부교과", subType: "지역인재", quota: 28, minScore: "국/수/영 3개 합 7", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 10, student: "송건우", univ: "강원대학교", region: "강원", type: "학생부교과", subType: "일반전형", quota: 50, minScore: "국/수/영 2개 합 8", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 11, student: "김태희", univ: "제주대학교", region: "제주", type: "학생부종합", subType: "일반학생", quota: 20, minScore: "없음", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 12, student: "김철수", univ: "한양대학교", region: "수도권", type: "학생부종합", subType: "추천형", quota: 16, minScore: "없음", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 13, student: "김철수", univ: "중앙대학교", region: "수도권", type: "논술", subType: "논술전형", quota: 20, minScore: "3개 합 6", step1: "해당없음", stepFinal: "불합격", reason: "논술 고사 점수 미달" },
-        { id: 14, student: "이영희", univ: "경희대학교", region: "수도권", type: "실기/실적", subType: "K-SW인재", quota: 8, minScore: "없음", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 15, student: "박민수", univ: "서강대학교", region: "수도권", type: "학생부종합", subType: "일반형", quota: 14, minScore: "없음", step1: "불합격", stepFinal: "불합격", reason: "서류 평가 점수 미달" }
-      ],
-      "2025": [
-        { id: 101, student: "김철수", univ: "서울대학교", region: "수도권", type: "학생부종합", subType: "일반전형", quota: 30, minScore: "없음", step1: "불합격", stepFinal: "불합격", reason: "1단계 서류 미통과" },
-        { id: 102, student: "이영희", univ: "연세대학교", region: "수도권", type: "학생부교과", subType: "추천형", quota: 20, minScore: "없음", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 103, student: "박민수", univ: "충북대학교", region: "충청", type: "학생부교과", subType: "일반전형", quota: 45, minScore: "2개 합 8", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 104, student: "정수진", univ: "전북대학교", region: "호남", type: "학생부종합", subType: "큰사람전형", quota: 25, minScore: "없음", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 105, student: "최동현", univ: "경북대학교", region: "영남", type: "논술", subType: "AAT전형", quota: 35, minScore: "2개 합 5", step1: "해당없음", stepFinal: "불합격", reason: "수능 최저 미충족" }
-      ],
-      "2024": [
-        { id: 201, student: "김철수", univ: "고려대학교", region: "수도권", type: "학생부교과", subType: "학교추천", quota: 20, minScore: "3개 합 6", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 202, student: "이영희", univ: "성균관대학교", region: "수도권", type: "학생부종합", subType: "학과모집", quota: 18, minScore: "없음", step1: "합격", stepFinal: "최종합격", reason: "-" },
-        { id: 203, student: "박민수", univ: "공주대학교", region: "충청", type: "학생부교과", subType: "일반전형", quota: 50, minScore: "2개 합 9", step1: "합격", stepFinal: "최종합격", reason: "-" }
-      ]
-    };
+    // State Management
+    let passwords = { student: "1234", teacher: "1234", admin: "1234" };
+    let years = ["2026학년도", "2025학년도", "2024학년도"];
+    let currentRole = null;
+    let selectedRegion = "전체";
+    let typeChartInstance = null;
 
-    // Global Active Variables
-    let currentRole = 'teacher'; // 'admin', 'teacher', 'student'
-    let chartTypeDist = null;
-    let chartTypePass = null;
+    // Database Storage
+    let rawDatabase = [];
 
-    let selectedRegionName = null;
-    let searchedUnivName = null;
+    // Initialize Application
+    window.addEventListener('DOMContentLoaded', () => {
+      populateYearDropdowns();
+    });
 
-    window.onload = function() {
-      // Register DataLabels plugin globally
-      Chart.register(ChartDataLabels);
+    // Populate Year Dropdowns
+    function populateYearDropdowns() {
+      const globalSelect = document.getElementById('globalYearSelect');
+      const inputSelect = document.getElementById('inputYear');
 
-      // Render Initial View
-      updateAdminView();
-      updateStudentView();
-      renderAdminControlTable();
-    };
+      globalSelect.innerHTML = '<option value="전체">전체 연도 누적</option>' + 
+        years.map(y => `<option value="${y}">${y}</option>`).join('');
 
-    // Role Switcher Function (관리자용, 교사용, 학생용)
-    function switchRole(role) {
-      currentRole = role;
-
-      const btnAdmin = document.getElementById('tabAdmin');
-      const btnTeacher = document.getElementById('tabTeacher');
-      const btnStudent = document.getElementById('tabStudent');
-
-      const viewAdmin = document.getElementById('viewAdmin');
-      const viewTeacher = document.getElementById('viewTeacher');
-      const viewStudent = document.getElementById('viewStudent');
-
-      // Reset Styling
-      const inactiveClass = "flex items-center px-3 py-1.5 sm:px-4 sm:py-2 font-medium rounded-lg transition-all duration-200 text-indigo-200 hover:text-white";
-      const activeClass = "flex items-center px-3 py-1.5 sm:px-4 sm:py-2 font-medium rounded-lg transition-all duration-200 bg-indigo-600 text-white shadow-sm";
-
-      btnAdmin.className = inactiveClass;
-      btnTeacher.className = inactiveClass;
-      btnStudent.className = inactiveClass;
-
-      viewAdmin.classList.add('hidden');
-      viewTeacher.classList.add('hidden');
-      viewStudent.classList.add('hidden');
-
-      if (role === 'admin') {
-        btnAdmin.className = activeClass;
-        viewAdmin.classList.remove('hidden');
-        renderAdminControlTable();
-      } else if (role === 'teacher') {
-        btnTeacher.className = activeClass;
-        viewTeacher.classList.remove('hidden');
-        updateAdminView();
-      } else if (role === 'student') {
-        btnStudent.className = activeClass;
-        viewStudent.classList.remove('hidden');
-        updateStudentView();
-      }
+      inputSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
     }
 
-    function updateAdminView() {
-      const year = document.getElementById('adminYearSelect').value;
-      const data = mockDatabase[year] || [];
-
-      // Metrics
-      const totalApps = data.length;
-      const totalPass = data.filter(d => d.stepFinal === '최종합격').length;
-      const passRate = totalApps > 0 ? ((totalPass / totalApps) * 100).toFixed(1) : 0;
-      const uniqueUnivs = new Set(data.map(d => d.univ)).size;
-
-      document.getElementById('statTotalApplications').innerText = `${totalApps}건`;
-      document.getElementById('statTotalPass').innerText = `${totalPass}건`;
-      document.getElementById('statPassRate').innerText = `${passRate}%`;
-      document.getElementById('statTotalUniversities').innerText = `${uniqueUnivs}개교`;
-
-      // Charts & Summary Tables
-      renderTypeDistributionChart(data);
-      renderTypePassRateChart(data);
-      renderTypeSummaryTable(data);
-      renderRegionSummaryTable(data);
-
-      if (searchedUnivName) {
-        executeUnivSearch();
-      } else if (selectedRegionName) {
-        selectRegion(selectedRegionName);
+    function onGlobalYearChange() {
+      if (currentRole === 'student') {
+        renderStudentDashboard();
       } else {
-        resetMapSelection();
+        renderEditorTable();
       }
     }
 
-    // 전형별 지원 분포 (누적 원 그래프 + 원 조각 위 레이블 직접 표기)
-    function renderTypeDistributionChart(data) {
-      const types = ['학생부교과', '학생부종합', '논술', '실기/실적'];
-      const counts = types.map(t => data.filter(d => d.type === t).length);
-      const total = counts.reduce((a, b) => a + b, 0);
+    // Login Handler
+    function handleLogin(event) {
+      event.preventDefault();
+      const role = document.getElementById('loginRole').value;
+      const pwdInput = document.getElementById('loginPassword').value;
 
-      const ctx = document.getElementById('chartTypeDistribution').getContext('2d');
-      if (chartTypeDist) chartTypeDist.destroy();
+      if (pwdInput === passwords[role]) {
+        currentRole = role;
+        document.getElementById('loginView').classList.add('hidden');
+        document.getElementById('mainApp').classList.remove('hidden');
+        document.getElementById('sessionBar').classList.remove('hidden');
+        document.getElementById('sessionBar').classList.add('flex');
 
-      chartTypeDist = new Chart(ctx, {
+        const roleBadge = document.getElementById('roleBadge');
+        if (role === 'student') {
+          roleBadge.innerText = '학생용 (통계/검색)';
+          roleBadge.className = 'text-xs px-2.5 py-1 rounded-full font-bold bg-slate-600 text-white';
+          document.getElementById('studentViewSection').classList.remove('hidden');
+          document.getElementById('editorViewSection').classList.add('hidden');
+          renderStudentDashboard();
+        } else {
+          roleBadge.innerText = (role === 'teacher') ? '담임교사용' : '최고관리자용';
+          roleBadge.className = (role === 'teacher') ? 'text-xs px-2.5 py-1 rounded-full font-bold bg-indigo-600 text-white' : 'text-xs px-2.5 py-1 rounded-full font-bold bg-amber-600 text-white';
+          document.getElementById('studentViewSection').classList.add('hidden');
+          document.getElementById('editorViewSection').classList.remove('hidden');
+          renderEditorTable();
+        }
+
+        document.getElementById('btnYearManage').className = (role === 'admin') ? 'text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-2.5 py-1.5 rounded transition' : 'hidden';
+        document.getElementById('btnAdminSetting').className = (role === 'admin') ? 'text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2.5 py-1.5 rounded transition' : 'hidden';
+
+      } else {
+        alert('비밀번호가 올바르지 않습니다.');
+      }
+    }
+
+    function logout() {
+      currentRole = null;
+      document.getElementById('loginPassword').value = '';
+      document.getElementById('mainApp').classList.add('hidden');
+      document.getElementById('sessionBar').classList.add('hidden');
+      document.getElementById('loginView').classList.remove('hidden');
+    }
+
+    // Helper: Normalize Class Name
+    function normalizeClassName(inputStr) {
+      if (!inputStr) return "";
+      const str = String(inputStr).trim();
+      const match = str.match(/(\d+)\s*학년\s*(\d+)\s*반/) || str.match(/(\d+)-(\d+)/);
+      if (match) return `${match[1]}학년 ${match[2]}반`;
+      const singleNumMatch = str.match(/^(\d+)\s*반?$/);
+      if (singleNumMatch) return `3학년 ${singleNumMatch[1]}반`;
+      return str;
+    }
+
+    // Helper: University Name Summarizer
+    function summarizeUniv(univ) {
+      if (!univ) return "";
+      let cleaned = String(univ).trim();
+      cleaned = cleaned.replace(/대학교$/, "대");
+      return cleaned;
+    }
+
+    // Helper: Detail Type Summarizer (Remove '학생부', '전형')
+    function summarizeDetailType(detailStr) {
+      if (!detailStr) return "";
+      let cleaned = String(detailStr).trim();
+      cleaned = cleaned.replace(/학생부/g, "").replace(/전형/g, "").trim();
+      return cleaned;
+    }
+
+    // Helper: Date Formatter & Equal Date Shortener
+    function formatDate(dateStr) {
+      if (!dateStr) return "";
+      let str = String(dateStr).trim();
+
+      if (str.includes('~')) {
+        const parts = str.split('~').map(p => p.trim());
+        if (parts.length === 2 && parts[0] === parts[1]) {
+          str = parts[0];
+        }
+      }
+
+      let cleaned = str.replace(/[.\/]/g, '-');
+      const dateObj = new Date(cleaned);
+
+      if (isNaN(dateObj.getTime())) return str;
+
+      const yy = String(dateObj.getFullYear()).slice(-2);
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const dd = String(dateObj.getDate()).padStart(2, '0');
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      const dayName = days[dateObj.getDay()];
+
+      return `'${yy}.${mm}.${dd}.(${dayName})`;
+    }
+
+    // Get Active Data Set filtered by Global Year
+    function getFilteredData() {
+      const selectedYear = document.getElementById('globalYearSelect').value;
+      if (selectedYear === "전체") return rawDatabase;
+      return rawDatabase.filter(item => item.year === selectedYear);
+    }
+
+    // =================================================================
+    // STUDENT VIEW LOGIC (통계, 시각화, 지도, 대학 검색)
+    // =================================================================
+    function renderStudentDashboard() {
+      const dataset = getFilteredData();
+
+      // KPI Calculation
+      const totalApps = dataset.length;
+      const totalPass = dataset.filter(d => d.finalStep === '합격' || d.finalStep === '추합').length;
+      const passRate = totalApps > 0 ? ((totalPass / totalApps) * 100).toFixed(1) : 0;
+      const uniqueUnivs = new Set(dataset.map(d => summarizeUniv(d.university)).filter(Boolean)).size;
+
+      document.getElementById('kpiTotalApps').innerText = `${totalApps}지원`;
+      document.getElementById('kpiTotalPass').innerText = `${totalPass}합격`;
+      document.getElementById('kpiPassRate').innerText = `${passRate}%`;
+      document.getElementById('kpiUnivCount').innerText = `${uniqueUnivs}개 대학`;
+
+      // Type Categorization for Donut & Table
+      const typeCategories = { '교과': { apps: 0, step1: 0, pass: 0 }, '종합': { apps: 0, step1: 0, pass: 0 }, '논술': { apps: 0, step1: 0, pass: 0 }, '실기': { apps: 0, step1: 0, pass: 0 }, '기타': { apps: 0, step1: 0, pass: 0 } };
+
+      dataset.forEach(item => {
+        const detail = item.detailType || '';
+        let cat = '기타';
+        if (detail.includes('교과')) cat = '교과';
+        else if (detail.includes('종합')) cat = '종합';
+        else if (detail.includes('논술')) cat = '논술';
+        else if (detail.includes('실기')) cat = '실기';
+
+        typeCategories[cat].apps++;
+        if (item.step1 === '1차합격') typeCategories[cat].step1++;
+        if (item.finalStep === '합격' || item.finalStep === '추합') typeCategories[cat].pass++;
+      });
+
+      // Render Donut Chart
+      renderDonutChart(typeCategories);
+
+      // Render Type Summary Table
+      const summaryTbody = document.getElementById('typeSummaryTableBody');
+      summaryTbody.innerHTML = Object.keys(typeCategories).map(cat => {
+        const info = typeCategories[cat];
+        const rate = info.apps > 0 ? ((info.pass / info.apps) * 100).toFixed(1) : 0;
+        return `
+          <tr class="hover:bg-slate-50">
+            <td class="p-2.5 font-bold text-slate-800">${cat} 전형</td>
+            <td class="p-2.5 text-center font-medium">${info.apps}건</td>
+            <td class="p-2.5 text-center text-amber-600 font-semibold">${info.step1}건</td>
+            <td class="p-2.5 text-center text-emerald-600 font-bold">${info.pass}건</td>
+            <td class="p-2.5 text-center font-bold text-indigo-600">${rate}%</td>
+          </tr>`;
+      }).join('');
+
+      renderStudentResultTable();
+    }
+
+    function renderDonutChart(data) {
+      const ctx = document.getElementById('typeDonutChart').getContext('2d');
+      if (typeChartInstance) typeChartInstance.destroy();
+
+      typeChartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
-          labels: types,
+          labels: ['교과 전형', '종합 전형', '논술 전형', '실기 전형', '기타'],
           datasets: [{
-            data: counts,
-            backgroundColor: ['#3b82f6', '#a855f7', '#f59e0b', '#f43f5e'],
-            borderWidth: 2,
-            borderColor: '#ffffff'
+            data: [data['교과'].apps, data['종합'].apps, data['논술'].apps, data['실기'].apps, data['기타'].apps],
+            backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#94a3b8']
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { font: { family: 'Pretendard', size: 11 }, boxWidth: 12 } },
-            datalabels: {
-              color: '#ffffff',
-              font: { weight: 'bold', size: 11, family: 'Pretendard' },
-              formatter: (value, ctx) => {
-                if (value === 0 || total === 0) return '';
-                const percentage = ((value / total) * 100).toFixed(0) + '%';
-                const label = ctx.chart.data.labels[ctx.dataIndex];
-                return `${label}\n${value}건 (${percentage})`;
-              },
-              textAlign: 'center'
-            }
-          }
+          plugins: { legend: { position: 'right' } }
         }
       });
     }
 
-    function renderTypePassRateChart(data) {
-      const types = ['학생부교과', '학생부종합', '논술', '실기/실적'];
-      const passCounts = types.map(t => data.filter(d => d.type === t && d.stepFinal === '최종합격').length);
-      const failCounts = types.map(t => data.filter(d => d.type === t && d.stepFinal !== '최종합격').length);
-
-      const ctx = document.getElementById('chartTypePassRate').getContext('2d');
-      if (chartTypePass) chartTypePass.destroy();
-
-      chartTypePass = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: types,
-          datasets: [
-            { label: '최종 합격', data: passCounts, backgroundColor: '#10b981' },
-            { label: '불합격', data: failCounts, backgroundColor: '#cbd5e1' }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: { stacked: true },
-            y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
-          },
-          plugins: {
-            legend: { position: 'bottom', labels: { font: { family: 'Pretendard', size: 11 }, boxWidth: 12 } },
-            datalabels: {
-              color: (ctx) => ctx.datasetIndex === 0 ? '#ffffff' : '#475569',
-              font: { weight: 'bold', size: 10 },
-              formatter: (val) => val > 0 ? val : ''
-            }
-          }
-        }
-      });
+    function filterStudentUnivSearch() {
+      renderStudentResultTable();
     }
 
-    function renderTypeSummaryTable(data) {
-      const types = ['학생부교과', '학생부종합', '논술', '실기/실적'];
-      const tbody = document.getElementById('tableTypeSummary');
-      tbody.innerHTML = '';
-
-      types.forEach(t => {
-        const total = data.filter(d => d.type === t).length;
-        const pass = data.filter(d => d.type === t && d.stepFinal === '최종합격').length;
-        const fail = total - pass;
-        const rate = total > 0 ? ((pass / total) * 100).toFixed(1) : '0.0';
-
-        tbody.innerHTML += `
-          <tr class="hover:bg-slate-50">
-            <td class="px-3 py-2 font-medium text-slate-800">${t}</td>
-            <td class="px-3 py-2 text-center font-semibold">${total}</td>
-            <td class="px-3 py-2 text-center text-emerald-600 font-bold">${pass}</td>
-            <td class="px-3 py-2 text-center text-slate-400">${fail}</td>
-            <td class="px-3 py-2 text-right font-bold text-indigo-600">${rate}%</td>
-          </tr>
-        `;
-      });
-    }
-
-    function renderRegionSummaryTable(data) {
-      const regions = ['수도권', '충청', '호남', '영남', '강원', '제주'];
-      const tbody = document.getElementById('tableRegionSummary');
-      tbody.innerHTML = '';
-
-      regions.forEach(r => {
-        const regionData = data.filter(d => d.region === r);
-        const totalApps = regionData.length;
-        const pass = regionData.filter(d => d.stepFinal === '최종합격').length;
-        const rate = totalApps > 0 ? ((pass / totalApps) * 100).toFixed(1) : '0.0';
-        const univCount = new Set(regionData.map(d => d.univ)).size;
-
-        tbody.innerHTML += `
-          <tr class="hover:bg-slate-50">
-            <td class="px-3 py-2 font-medium text-slate-800 flex items-center">
-              <span class="w-2 h-2 rounded-full bg-indigo-500 mr-2"></span>${r}권
-            </td>
-            <td class="px-3 py-2 text-center text-slate-600">${univCount}</td>
-            <td class="px-3 py-2 text-center font-semibold">${totalApps}</td>
-            <td class="px-3 py-2 text-center text-emerald-600 font-bold">${pass}</td>
-            <td class="px-3 py-2 text-right font-bold text-indigo-600">${rate}%</td>
-          </tr>
-        `;
-      });
+    function clearUnivSearch() {
+      document.getElementById('univSearchInput').value = '';
+      selectRegion('전체');
     }
 
     function selectRegion(regionName) {
-      selectedRegionName = regionName;
-      searchedUnivName = null;
-      document.getElementById('univSearchInput').value = '';
+      selectedRegion = regionName;
+      document.getElementById('selectedRegionBadge').innerText = regionName === '전체' ? '전체 지역' : regionName;
+      
+      document.querySelectorAll('.map-region').forEach(el => {
+        if (el.getAttribute('data-region') === regionName) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      });
 
-      document.querySelectorAll('.map-region').forEach(el => el.classList.remove('active'));
-      const activeSvg = document.getElementById(`region-${regionName}`);
-      if (activeSvg) activeSvg.classList.add('active');
-
-      showFilterBadge(`선택 지역: [${regionName}권]`);
-
-      document.getElementById('initialGuideBox').classList.add('hidden');
-      document.getElementById('univDetailTableContainer').classList.add('hidden');
-
-      const year = document.getElementById('adminYearSelect').value;
-      const data = mockDatabase[year] || [];
-      const regionData = data.filter(d => d.region === regionName);
-
-      const univListContainer = document.getElementById('regionUnivListContainer');
-      const univTableBody = document.getElementById('regionUnivTableBody');
-      document.getElementById('regionListTitle').innerHTML = `<i class="fa-solid fa-building-columns text-indigo-600 mr-2"></i>[${regionName}권] 지원 대학 목록 및 전형별 지원수`;
-
-      if (regionData.length === 0) {
-        univTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">해당 지역에 지원한 대학 내역이 없습니다.</td></tr>`;
-      } else {
-        const univGroups = {};
-        regionData.forEach(d => {
-          if (!univGroups[d.univ]) {
-            univGroups[d.univ] = { '학생부교과': 0, '학생부종합': 0, '논술': 0, '실기/실적': 0, total: 0 };
-          }
-          if (univGroups[d.univ][d.type] !== undefined) {
-            univGroups[d.univ][d.type]++;
-          }
-          univGroups[d.univ].total++;
-        });
-
-        univTableBody.innerHTML = '';
-        Object.keys(univGroups).forEach(univ => {
-          const g = univGroups[univ];
-          univTableBody.innerHTML += `
-            <tr class="hover:bg-indigo-50/50 transition-colors">
-              <td class="px-3 py-2.5 font-bold text-indigo-600 cursor-pointer hover:underline flex items-center" onclick="showUniversityDetail('${univ}')">
-                <i class="fa-solid fa-angles-right text-xs mr-1.5 opacity-70"></i>${univ}
-              </td>
-              <td class="px-2 py-2.5 text-center">${g['학생부교과'] || '-'}</td>
-              <td class="px-2 py-2.5 text-center">${g['학생부종합'] || '-'}</td>
-              <td class="px-2 py-2.5 text-center">${g['논술'] || '-'}</td>
-              <td class="px-2 py-2.5 text-center">${g['실기/실적'] || '-'}</td>
-              <td class="px-2 py-2.5 text-center font-bold text-slate-800 bg-slate-100">${g.total}</td>
-            </tr>
-          `;
-        });
-      }
-
-      univListContainer.classList.remove('hidden');
+      renderStudentResultTable();
     }
 
-    function showUniversityDetail(univName) {
-      const year = document.getElementById('adminYearSelect').value;
-      const data = mockDatabase[year] || [];
-      const univData = data.filter(d => d.univ === univName);
+    function renderStudentResultTable() {
+      let dataset = getFilteredData();
+      const searchQuery = document.getElementById('univSearchInput').value.trim().toLowerCase();
 
-      const detailContainer = document.getElementById('univDetailTableContainer');
-      const detailBody = document.getElementById('univDetailTableBody');
-
-      document.getElementById('univDetailTitle').innerHTML = `<i class="fa-solid fa-graduation-cap text-indigo-600 mr-2"></i>[${univName}] 학생 상세 지원 내역`;
-      document.getElementById('univDetailBadge').innerText = `지원 ${univData.length}건`;
-
-      detailBody.innerHTML = '';
-      if (univData.length === 0) {
-        detailBody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">상세 내역이 존재하지 않습니다.</td></tr>`;
-      } else {
-        univData.forEach(d => {
-          const passBadge = d.stepFinal === '최종합격' 
-            ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700">최종합격</span>`
-            : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-700">불합격</span>`;
-
-          detailBody.innerHTML += `
-            <tr class="hover:bg-slate-50">
-              <td class="px-3 py-2.5 font-bold text-slate-800">${d.student}</td>
-              <td class="px-3 py-2.5"><span class="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">${d.subType}</span></td>
-              <td class="px-3 py-2.5 text-center font-semibold text-slate-700">${d.quota}명</td>
-              <td class="px-3 py-2.5 text-slate-600">${d.minScore}</td>
-              <td class="px-3 py-2.5 text-center font-medium">${d.step1}</td>
-              <td class="px-3 py-2.5 text-center">${passBadge}</td>
-              <td class="px-3 py-2.5 text-slate-500">${d.reason}</td>
-            </tr>
-          `;
-        });
+      if (searchQuery) {
+        dataset = dataset.filter(d => (d.university || '').toLowerCase().includes(searchQuery));
       }
 
-      detailContainer.classList.remove('hidden');
-      detailContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+      const tbody = document.getElementById('studentResultTableBody');
+      tbody.innerHTML = '';
 
-    function executeUnivSearch() {
-      const query = document.getElementById('univSearchInput').value.trim();
-      if (!query) return;
-
-      const year = document.getElementById('adminYearSelect').value;
-      const data = mockDatabase[year] || [];
-      const matchedRecord = data.find(d => d.univ.includes(query));
-
-      if (!matchedRecord) {
-        const msg = document.createElement('div');
-        msg.className = "fixed bottom-5 right-5 bg-rose-600 text-white text-xs px-4 py-2.5 rounded-lg shadow-lg z-50 flex items-center";
-        msg.innerHTML = `<i class="fa-solid fa-circle-exclamation mr-2"></i>'${query}' 대학 내역이 ${year}학년도 데이터에 없습니다.`;
-        document.body.appendChild(msg);
-        setTimeout(() => msg.remove(), 2500);
+      if (dataset.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-slate-400">조건에 맞는 대학 결과 데이터가 없습니다.</td></tr>`;
         return;
       }
 
-      const targetUniv = matchedRecord.univ;
-      const targetRegion = matchedRecord.region;
+      dataset.forEach(app => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition border-b border-slate-200";
 
-      searchedUnivName = targetUniv;
-      selectedRegionName = null;
+        const isStep1Failed = (app.step1 === '1차불합');
+        const univText = renderCellContent(summarizeUniv(app.university), "font-bold text-slate-800");
+        const detailTypeText = renderCellContent(summarizeDetailType(app.detailType));
+        const deptText = renderCellContent(app.dept);
+        const minExamText = renderCellContent(app.minExam);
+        const interviewDateText = renderCellContent(formatDate(app.interviewDate));
+        const step1Badge = renderStatusBadge(app.step1);
 
-      document.querySelectorAll('.map-region').forEach(el => el.classList.remove('active'));
-      const activeSvg = document.getElementById(`region-${targetRegion}`);
-      if (activeSvg) activeSvg.classList.add('active');
+        let finalDateText, finalStepBadge, failReasonText;
+        if (isStep1Failed) {
+          finalDateText = `<span class="text-slate-400">-</span>`;
+          finalStepBadge = `<span class="text-slate-400 font-medium">-</span>`;
+          failReasonText = renderCellContent(app.failReason || "1단계 불합격");
+        } else {
+          finalDateText = renderCellContent(formatDate(app.finalDate));
+          finalStepBadge = renderStatusBadge(app.finalStep);
+          failReasonText = renderCellContent(app.failReason);
+        }
 
-      showFilterBadge(`검색 대학: [${targetUniv}] (${targetRegion}권)`);
-
-      document.getElementById('initialGuideBox').classList.add('hidden');
-      document.getElementById('regionUnivListContainer').classList.add('hidden');
-
-      showUniversityDetail(targetUniv);
-    }
-
-    function handleSearchUniv(e) {
-      if (e.key === 'Enter') executeUnivSearch();
-    }
-
-    function showFilterBadge(text) {
-      const badge = document.getElementById('activeFilterBadge');
-      document.getElementById('activeFilterText').innerHTML = `<i class="fa-solid fa-filter mr-1.5"></i>${text}`;
-      badge.classList.remove('hidden');
-      badge.classList.add('flex');
-    }
-
-    function resetMapSelection() {
-      selectedRegionName = null;
-      searchedUnivName = null;
-      document.getElementById('univSearchInput').value = '';
-      document.querySelectorAll('.map-region').forEach(el => el.classList.remove('active'));
-      
-      document.getElementById('activeFilterBadge').classList.add('hidden');
-      document.getElementById('initialGuideBox').classList.remove('hidden');
-      document.getElementById('regionUnivListContainer').classList.add('hidden');
-      document.getElementById('univDetailTableContainer').classList.add('hidden');
-    }
-
-    function clearSearchAndRegion() {
-      resetMapSelection();
-    }
-
-    function updateStudentView() {
-      const year = document.getElementById('studentYearSelect').value;
-      const studentName = "김철수";
-      const yearData = mockDatabase[year] || [];
-      const studentRecords = yearData.filter(d => d.student === studentName);
-
-      document.getElementById('studentTableTitle').innerText = `${year}학년도 [${studentName}] 학생 수시 지원 및 결과 상세`;
-
-      const totalCount = studentRecords.length;
-      const passCount = studentRecords.filter(d => d.stepFinal === '최종합격').length;
-      const waitCount = studentRecords.filter(d => d.reason.includes('면접') || d.reason.includes('대기') || d.reason.includes('예비')).length;
-
-      document.getElementById('studentStatTotal').innerText = `${totalCount} / 6`;
-      document.getElementById('studentStatPass').innerText = `${passCount}개교`;
-      document.getElementById('studentStatWait').innerText = `${waitCount}건`;
-
-      const tbody = document.getElementById('studentTableBody');
-      tbody.innerHTML = '';
-
-      if (studentRecords.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400">${year}학년도 지원 내역 데이터가 없습니다.</td></tr>`;
-      } else {
-        studentRecords.forEach(r => {
-          const passBadge = r.stepFinal === '최종합격'
-            ? `<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">최종합격</span>`
-            : `<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">불합격</span>`;
-
-          tbody.innerHTML += `
-            <tr class="hover:bg-slate-50">
-              <td class="px-3 py-3 font-bold text-slate-800">${r.univ}</td>
-              <td class="px-3 py-3 font-medium text-indigo-600">${r.type}</td>
-              <td class="px-3 py-3">${r.subType}</td>
-              <td class="px-3 py-3 text-center font-semibold">${r.quota}명</td>
-              <td class="px-3 py-3 text-slate-600">${r.minScore}</td>
-              <td class="px-3 py-3 text-center">${r.step1}</td>
-              <td class="px-3 py-3 text-center">${passBadge}</td>
-              <td class="px-3 py-3 text-slate-500">${r.reason}</td>
-            </tr>
-          `;
-        });
-      }
-    }
-
-    function renderAdminControlTable() {
-      const year = document.getElementById('adminYearSelect').value;
-      const yearData = mockDatabase[year] || [];
-      const tbody = document.getElementById('adminDataTableBody');
-      tbody.innerHTML = '';
-
-      yearData.forEach((d, index) => {
-        tbody.innerHTML += `
-          <tr class="hover:bg-slate-50">
-            <td class="px-3 py-2.5 font-semibold text-slate-500">${year}</td>
-            <td class="px-3 py-2.5 font-bold text-slate-800">${d.student}</td>
-            <td class="px-3 py-2.5 text-indigo-600 font-medium">${d.univ} (${d.region})</td>
-            <td class="px-3 py-2.5">${d.type}</td>
-            <td class="px-3 py-2.5">${d.subType}</td>
-            <td class="px-3 py-2.5 text-center">${d.step1}</td>
-            <td class="px-3 py-2.5 text-center">
-              <span class="${d.stepFinal === '최종합격' ? 'text-emerald-600 font-bold' : 'text-slate-400'}">${d.stepFinal}</span>
-            </td>
-            <td class="px-3 py-2.5 text-center">
-              <button onclick="deleteRecord('${year}', ${d.id})" class="text-rose-600 hover:text-rose-800 text-xs font-semibold">삭제</button>
-            </td>
-          </tr>
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 text-center border-r border-slate-200">${univText}</td>
+          <td class="py-2.5 px-3 text-center border-r border-slate-200">${detailTypeText}</td>
+          <td class="py-2.5 px-3 text-center border-r border-slate-200">${deptText}</td>
+          <td class="py-2.5 px-2 text-center border-r border-slate-200">${minExamText}</td>
+          <td class="py-2.5 px-3 text-center border-r border-slate-200">${interviewDateText}</td>
+          <td class="py-2.5 px-2 text-center border-r border-slate-200 bg-indigo-50/20">${step1Badge}</td>
+          <td class="py-2.5 px-2 text-center border-r border-slate-200 ${isStep1Failed ? 'disabled-stage-cell' : ''}">${finalDateText}</td>
+          <td class="py-2.5 px-2 text-center border-r border-slate-200 ${isStep1Failed ? 'disabled-stage-cell' : 'bg-indigo-50/20'}">${finalStepBadge}</td>
+          <td class="py-2.5 px-3 text-center ${isStep1Failed ? 'disabled-stage-cell' : ''}">${failReasonText}</td>
         `;
+
+        tbody.appendChild(tr);
       });
     }
 
-    function deleteRecord(year, id) {
-      mockDatabase[year] = mockDatabase[year].filter(d => d.id !== id);
-      renderAdminControlTable();
-      updateAdminView();
+    function renderStatusBadge(val) {
+      if (!val) return `<span class="text-slate-400">-</span>`;
+      let colorBadge = "bg-slate-100 text-slate-700";
+      if (val === "합격" || val === "1차합격") colorBadge = "bg-emerald-100 text-emerald-800 font-bold";
+      if (val === "불합격" || val === "1차불합") colorBadge = "bg-rose-100 text-rose-800 font-medium";
+      if (val === "추합") colorBadge = "bg-amber-100 text-amber-800 font-bold";
+      return `<span class="px-2 py-0.5 rounded text-[11px] ${colorBadge}">${val}</span>`;
     }
 
-    function openAddModal() {
-      document.getElementById('addModal').classList.remove('hidden');
+    // =================================================================
+    // TEACHER & ADMIN EDITOR TABLE LOGIC
+    // =================================================================
+    function renderEditorTable() {
+      const selectedClass = document.getElementById('classSelect').value;
+      const normalizedTargetClass = normalizeClassName(selectedClass);
+
+      const dataset = getFilteredData().filter(item => normalizeClassName(item.gradeClass) === normalizedTargetClass);
+
+      const studentGroupMap = new Map();
+      dataset.forEach(item => {
+        const key = `${item.num}_${item.name}`;
+        if (!studentGroupMap.has(key)) {
+          studentGroupMap.set(key, { num: item.num, name: item.name, gradeClass: item.gradeClass, applications: [] });
+        }
+        studentGroupMap.get(key).applications.push(item);
+      });
+
+      const groupedStudents = Array.from(studentGroupMap.values());
+      groupedStudents.sort((a, b) => Number(a.num) - Number(b.num));
+
+      document.getElementById('studentCountBadge').innerText = `총 학생수: ${groupedStudents.length}명`;
+
+      const tbody = document.getElementById('editorTableBody');
+      tbody.innerHTML = '';
+
+      if (groupedStudents.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-slate-400 bg-slate-50">등록된 데이터가 없습니다. 엑셀을 업로드해 보세요.</td></tr>`;
+        return;
+      }
+
+      groupedStudents.forEach(student => {
+        const appCount = student.applications.length;
+
+        student.applications.forEach((app, index) => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50/80 transition border-b border-slate-200";
+
+          let studentInfoCells = '';
+          if (index === 0) {
+            const classShort = student.gradeClass.replace("3학년 ", "");
+            studentInfoCells = `
+              <td rowspan="${appCount}" class="py-2 px-2 text-center font-semibold text-slate-700 bg-white border-r border-slate-200 align-middle">${classShort}</td>
+              <td rowspan="${appCount}" class="py-2 px-2 text-center font-medium text-slate-600 bg-white border-r border-slate-200 align-middle">${student.num}</td>
+              <td rowspan="${appCount}" class="py-2 px-3 text-center font-bold text-slate-900 bg-white border-r border-slate-200 align-middle">${student.name}</td>
+            `;
+          }
+
+          const isStep1Failed = (app.step1 === '1차불합');
+
+          const univText = renderCellContent(summarizeUniv(app.university), "font-semibold text-slate-800");
+          const detailTypeText = renderCellContent(summarizeDetailType(app.detailType));
+          const deptText = renderCellContent(app.dept);
+          const minExamText = renderCellContent(app.minExam);
+          const interviewDateText = renderCellContent(formatDate(app.interviewDate));
+
+          let finalDateText, finalStepSelect, failReasonText;
+
+          if (isStep1Failed) {
+            finalDateText = `<span class="text-slate-400">-</span>`;
+            finalStepSelect = `<span class="text-slate-400 font-medium">-</span>`;
+            failReasonText = renderCellContent(app.failReason || "1단계 불합격");
+          } else {
+            finalDateText = renderCellContent(formatDate(app.finalDate));
+            finalStepSelect = createStatusSelectHtml(app.id, 'finalStep', app.finalStep, ['합격', '불합격', '추합']);
+            failReasonText = renderCellContent(app.failReason);
+          }
+
+          const step1Select = createStatusSelectHtml(app.id, 'step1', app.step1, ['1차합격', '1차불합']);
+
+          tr.innerHTML = `
+            ${studentInfoCells}
+            <td class="py-2 px-3 text-center border-r border-slate-200 ${getCellBgClass(app.university)}">${univText}</td>
+            <td class="py-2 px-3 text-center border-r border-slate-200 ${getCellBgClass(app.detailType)}">${detailTypeText}</td>
+            <td class="py-2 px-3 text-center border-r border-slate-200 ${getCellBgClass(app.dept)}">${deptText}</td>
+            <td class="py-2 px-2 text-center border-r border-slate-200 ${getCellBgClass(app.minExam)}">${minExamText}</td>
+            <td class="py-2 px-3 text-center border-r border-slate-200 ${getCellBgClass(app.interviewDate)}">${interviewDateText}</td>
+            <td class="py-2 px-2 text-center border-r border-slate-200 bg-indigo-50/20">${step1Select}</td>
+            <td class="py-2 px-2 text-center border-r border-slate-200 ${isStep1Failed ? 'disabled-stage-cell' : getCellBgClass(app.finalDate)}">${finalDateText}</td>
+            <td class="py-2 px-2 text-center border-r border-slate-200 ${isStep1Failed ? 'disabled-stage-cell' : 'bg-indigo-50/20'}">${finalStepSelect}</td>
+            <td class="py-2 px-3 text-center border-r border-slate-200 ${isStep1Failed ? 'disabled-stage-cell' : getCellBgClass(app.failReason)}">${failReasonText}</td>
+            <td class="py-2 px-2 text-center align-middle bg-white">
+              <div class="flex justify-center space-x-1">
+                <button onclick="openRecordModal(${app.id})" class="text-indigo-600 hover:text-indigo-800 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button onclick="deleteRecord(${app.id})" class="text-rose-600 hover:text-rose-800 p-1"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </td>
+          `;
+
+          tbody.appendChild(tr);
+        });
+      });
     }
 
-    function closeAddModal() {
-      document.getElementById('addModal').classList.add('hidden');
+    function getCellBgClass(value) {
+      if (!value || String(value).trim() === "" || String(value).trim() === "-") return "empty-cell";
+      return "bg-white";
     }
 
-    function handleDataSubmit(e) {
+    function renderCellContent(value, extraClass = "") {
+      if (!value || String(value).trim() === "" || String(value).trim() === "-") {
+        return `<span class="text-slate-400 font-normal">-</span>`;
+      }
+      return `<span class="${extraClass}">${value}</span>`;
+    }
+
+    function createStatusSelectHtml(id, field, currentValue, options) {
+      const val = (currentValue || "").trim();
+      let colorStyle = "bg-slate-100 text-slate-500 border-slate-200";
+      if (val === "합격" || val === "1차합격") colorStyle = "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold";
+      if (val === "불합격" || val === "1차불합") colorStyle = "bg-rose-100 text-rose-800 border-rose-300 font-medium";
+      if (val === "추합") colorStyle = "bg-amber-100 text-amber-800 border-amber-300 font-bold";
+
+      const optionsHtml = options.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`).join('');
+
+      return `
+        <select onchange="updateStatus(${id}, '${field}', this.value)" class="text-xs py-1 px-1 rounded border focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${colorStyle}">
+          <option value="" ${val === "" ? "selected" : ""}>-</option>
+          ${optionsHtml}
+        </select>`;
+    }
+
+    function updateStatus(id, field, value) {
+      const target = rawDatabase.find(item => item.id === id);
+      if (target) {
+        target[field] = value;
+        renderEditorTable();
+      }
+    }
+
+    // Modal Control & Record Management
+    function openRecordModal(editId = null) {
+      document.getElementById('recordModal').classList.remove('hidden');
+
+      if (editId) {
+        document.getElementById('modalTitle').innerText = '지원 내역 수정';
+        const record = rawDatabase.find(r => r.id === editId);
+        if (record) {
+          document.getElementById('editRecordId').value = record.id;
+          document.getElementById('inputYear').value = record.year || years[0];
+          document.getElementById('inputGradeClass').value = record.gradeClass;
+          document.getElementById('inputNum').value = record.num;
+          document.getElementById('inputName').value = record.name;
+          document.getElementById('inputUniversity').value = record.university || '';
+          document.getElementById('inputDetailType').value = record.detailType || '';
+          document.getElementById('inputDept').value = record.dept || '';
+          document.getElementById('inputMinExam').value = record.minExam || '';
+          document.getElementById('inputInterviewDate').value = record.interviewDate || '';
+          document.getElementById('inputStep1').value = record.step1 || '';
+          document.getElementById('inputFinalDate').value = record.finalDate || '';
+          document.getElementById('inputFinalStep').value = record.finalStep || '';
+          document.getElementById('inputFailReason').value = record.failReason || '';
+        }
+      } else {
+        document.getElementById('modalTitle').innerText = '지원 내역 추가';
+        document.getElementById('editRecordId').value = '';
+        document.getElementById('inputYear').value = document.getElementById('globalYearSelect').value !== "전체" ? document.getElementById('globalYearSelect').value : years[0];
+        document.getElementById('inputGradeClass').value = document.getElementById('classSelect').value;
+        document.getElementById('inputNum').value = '';
+        document.getElementById('inputName').value = '';
+        document.getElementById('inputUniversity').value = '';
+        document.getElementById('inputDetailType').value = '';
+        document.getElementById('inputDept').value = '';
+        document.getElementById('inputMinExam').value = '';
+        document.getElementById('inputInterviewDate').value = '';
+        document.getElementById('inputStep1').value = '';
+        document.getElementById('inputFinalDate').value = '';
+        document.getElementById('inputFinalStep').value = '';
+        document.getElementById('inputFailReason').value = '';
+      }
+    }
+
+    function closeRecordModal() {
+      document.getElementById('recordModal').classList.add('hidden');
+    }
+
+    function saveRecord(e) {
       e.preventDefault();
-      const year = document.getElementById('adminYearSelect').value;
-      const newRecord = {
-        id: Date.now(),
-        student: document.getElementById('modalStudent').value,
-        univ: document.getElementById('modalUniv').value,
-        region: document.getElementById('modalRegion').value,
-        type: document.getElementById('modalType').value,
-        subType: "일반전형",
-        quota: 20,
-        minScore: "없음",
-        step1: "합격",
-        stepFinal: document.getElementById('modalPass').value,
-        reason: "-"
+      const editId = document.getElementById('editRecordId').value;
+
+      const recordData = {
+        year: document.getElementById('inputYear').value,
+        gradeClass: normalizeClassName(document.getElementById('inputGradeClass').value),
+        num: Number(document.getElementById('inputNum').value),
+        name: document.getElementById('inputName').value.trim(),
+        university: document.getElementById('inputUniversity').value.trim(),
+        detailType: document.getElementById('inputDetailType').value.trim(),
+        dept: document.getElementById('inputDept').value.trim(),
+        minExam: document.getElementById('inputMinExam').value.trim(),
+        interviewDate: document.getElementById('inputInterviewDate').value.trim(),
+        step1: document.getElementById('inputStep1').value,
+        finalDate: document.getElementById('inputFinalDate').value.trim(),
+        finalStep: document.getElementById('inputFinalStep').value,
+        failReason: document.getElementById('inputFailReason').value.trim()
       };
 
-      if (!mockDatabase[year]) mockDatabase[year] = [];
-      mockDatabase[year].push(newRecord);
+      if (editId) {
+        const index = rawDatabase.findIndex(r => r.id === Number(editId));
+        if (index !== -1) rawDatabase[index] = { ...rawDatabase[index], ...recordData };
+      } else {
+        rawDatabase.push({ id: Date.now(), ...recordData });
+      }
 
-      closeAddModal();
-      renderAdminControlTable();
-      updateAdminView();
+      closeRecordModal();
+      renderEditorTable();
+    }
+
+    function deleteRecord(id) {
+      if (confirm('해당 지원 내역을 삭제하시겠습니까?')) {
+        rawDatabase = rawDatabase.filter(r => r.id !== id);
+        renderEditorTable();
+      }
+    }
+
+    // Year Management Logic
+    function openYearManageModal() {
+      renderYearList();
+      document.getElementById('yearManageModal').classList.remove('hidden');
+    }
+
+    function closeYearManageModal() {
+      document.getElementById('yearManageModal').classList.add('hidden');
+    }
+
+    function renderYearList() {
+      const container = document.getElementById('yearListContainer');
+      container.innerHTML = years.map(y => `
+        <div class="flex justify-between items-center bg-white p-2 rounded border">
+          <span class="text-xs font-bold text-slate-700">${y}</span>
+          <button onclick="removeYear('${y}')" class="text-rose-500 hover:text-rose-700 text-xs font-semibold">삭제</button>
+        </div>`).join('');
+    }
+
+    function addNewYear() {
+      const input = document.getElementById('newYearInput');
+      const val = input.value.trim();
+      if (val && !years.includes(val)) {
+        years.unshift(val);
+        input.value = '';
+        populateYearDropdowns();
+        renderYearList();
+      }
+    }
+
+    function removeYear(y) {
+      if (years.length <= 1) {
+        alert('최소 하나의 입시연도는 유지되어야 합니다.');
+        return;
+      }
+      if (confirm(`${y}를 삭제하시겠습니까? 해당 연도로 저장된 데이터가 영향을 받을 수 있습니다.`)) {
+        years = years.filter(item => item !== y);
+        populateYearDropdowns();
+        renderYearList();
+      }
+    }
+
+    // Password Modal Logic
+    function openPasswordChangeModal() {
+      document.getElementById('pwdStudent').value = passwords.student;
+      document.getElementById('pwdTeacher').value = passwords.teacher;
+      document.getElementById('pwdAdmin').value = passwords.admin;
+      document.getElementById('passwordModal').classList.remove('hidden');
+    }
+
+    function closePasswordModal() {
+      document.getElementById('passwordModal').classList.add('hidden');
+    }
+
+    function savePasswords(e) {
+      e.preventDefault();
+      passwords.student = document.getElementById('pwdStudent').value;
+      passwords.teacher = document.getElementById('pwdTeacher').value;
+      passwords.admin = document.getElementById('pwdAdmin').value;
+      alert('비밀번호가 변경되었습니다.');
+      closePasswordModal();
+    }
+
+    // Excel Parsing & File Upload
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const currentYear = document.getElementById('globalYearSelect').value !== "전체" ? document.getElementById('globalYearSelect').value : years[0];
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+          if (jsonData.length === 0) {
+            alert('엑셀 파일에 데이터가 없습니다.');
+            return;
+          }
+
+          let newIdCounter = Date.now();
+          const parsedData = jsonData.map(row => {
+            newIdCounter++;
+            return {
+              id: newIdCounter,
+              year: row['입시연도'] || row['연도'] || currentYear,
+              gradeClass: normalizeClassName(row['반'] || row['학급'] || "3학년 5반"),
+              num: row['번호'] || row['번'] || 1,
+              name: row['이름'] || row['성명'] || "미상",
+              university: row['대학명'] || row['대학'] || "",
+              detailType: row['세부유형'] || "",
+              dept: row['모집단위'] || row['학과'] || "",
+              minExam: row['최저학력기준'] || row['최저'] || "",
+              interviewDate: row['면접일자'] || row['면접/논술일자'] || "",
+              step1: row['1단계'] || "",
+              finalDate: row['최종발표일'] || "",
+              finalStep: row['최종단계'] || "",
+              failReason: row['불합격사유'] || ""
+            };
+          });
+
+          rawDatabase = [...rawDatabase, ...parsedData];
+          renderEditorTable();
+          alert(`[${currentYear}] 데이터베이스에 총 ${parsedData.length}건이 누적 업로드되었습니다.`);
+        } catch (err) {
+          alert('엑셀 파일 처리 중 오류가 발생했습니다.');
+          console.error(err);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Excel Export
+    function exportCurrentClassToExcel() {
+      const selectedClass = document.getElementById('classSelect').value;
+      const normalizedTargetClass = normalizeClassName(selectedClass);
+
+      const exportData = getFilteredData()
+        .filter(item => normalizeClassName(item.gradeClass) === normalizedTargetClass)
+        .map(item => ({
+          '입시연도': item.year,
+          '반': item.gradeClass,
+          '번호': item.num,
+          '이름': item.name,
+          '대학명': summarizeUniv(item.university) || '',
+          '세부유형': summarizeDetailType(item.detailType) || '',
+          '모집단위': item.dept || '',
+          '최저학력기준': item.minExam || '',
+          '면접or논술일자': formatDate(item.interviewDate) || '',
+          '1단계': item.step1 || '',
+          '최종발표일': formatDate(item.finalDate) || '',
+          '최종단계': item.finalStep || '',
+          '불합격사유': item.failReason || ''
+        }));
+
+      if (exportData.length === 0) {
+        alert('내보낼 데이터가 없습니다.');
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, selectedClass);
+      
+      XLSX.writeFile(workbook, `${selectedClass}_대입진학데이터.xlsx`);
     }
   </script>
 </body>
