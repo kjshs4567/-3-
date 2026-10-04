@@ -136,6 +136,17 @@
     .summary-field:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.10); }
     .summary-field:disabled { background:#eef2f7; color:#94a3b8; cursor:not-allowed; }
     .summary-card-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .monitor-star { color:#cbd5e1; transition:all .15s ease; }
+    .monitor-star.active { color:#f59e0b; transform:scale(1.08); }
+    .student-monitor-row { background:#fffbeb !important; box-shadow:inset 4px 0 0 #f59e0b; }
+    .teacher-filter-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+    .teacher-filter-input { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:11px; outline:none; min-width:220px; }
+    .teacher-filter-input:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.10); }
+    .student-univ-buttons { display:flex; flex-wrap:wrap; gap:8px; }
+    .student-univ-button { display:inline-flex; align-items:center; gap:5px; border:1px solid #dbe3ef; background:#f8fafc; color:#334155; border-radius:999px; padding:7px 12px; font-size:11px; font-weight:800; transition:all .15s ease; cursor:pointer; }
+    .student-univ-button:hover { background:#eef2ff; border-color:#a5b4fc; color:#4338ca; transform:translateY(-1px); }
+    .student-univ-button .count { background:#e0e7ff; color:#4338ca; border-radius:999px; padding:2px 6px; font-size:10px; }
+    .student-detail-back { border:1px solid #c7d2fe; background:#eef2ff; color:#4338ca; border-radius:8px; padding:5px 9px; font-size:11px; font-weight:800; cursor:pointer; }
     .consult-layout { display:grid; grid-template-columns:minmax(320px,.9fr) minmax(480px,1.4fr); gap:16px; }
     .consult-editor { min-height:280px; border:1px solid #cbd5e1; border-radius:8px; padding:12px; outline:none; background:#fff; overflow:auto; }
     .consult-editor table { border-collapse:collapse; width:auto; margin:8px 0; }
@@ -463,6 +474,20 @@
             <h3 class="font-extrabold text-slate-800">학생별 한눈 요약</h3>
             <p class="text-[11px] text-slate-400 mt-1">학생 이름을 누르면 상담 기록 화면으로 이동합니다. 잠금 상태에서는 수정할 수 없습니다.</p>
           </div>
+          <div class="teacher-filter-bar no-print">
+            <div class="relative">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px]"></i>
+              <input id="manageStudentSearch" class="teacher-filter-input pl-8" placeholder="학생 검색: 이름 또는 번호" oninput="renderSummaryCards()">
+            </div>
+            <select id="manageStudentFilter" onchange="renderSummaryCards()" class="border border-slate-300 rounded-lg px-3 py-2 text-[11px] font-bold bg-white">
+              <option value="all">학생 필터: 전체</option>
+              <option value="monitor">상위권 모니터링</option>
+              <option value="pass">최종 합격자</option>
+              <option value="step1">1단계 합격자</option>
+              <option value="pending">결과 미정</option>
+            </select>
+            <button onclick="toggleMonitoringFilter('manage')" id="manageMonitorButton" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-star mr-1"></i>상위권 모니터링</button>
+          </div>
           <button id="globalLockButton" onclick="toggleAllStudentLocks()" class="no-print text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-lock mr-1"></i>전체 잠금</button>
         </div>
         <div id="studentSummaryGrid" class="summary-card-grid"></div>
@@ -540,6 +565,20 @@
           </span>
         </div>
 
+        <div class="teacher-filter-bar w-full xl:w-auto xl:ml-auto no-print">
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px]"></i>
+            <input id="teacherStudentSearch" class="teacher-filter-input pl-8" placeholder="학생 검색: 이름 또는 번호" oninput="renderEditorTable()">
+          </div>
+          <select id="teacherStudentFilter" onchange="renderEditorTable()" class="border border-slate-300 rounded-lg px-3 py-2 text-[11px] font-bold bg-white">
+            <option value="all">학생 필터: 전체</option>
+            <option value="monitor">상위권 모니터링</option>
+            <option value="pass">최종 합격자</option>
+            <option value="step1">1단계 합격자</option>
+            <option value="pending">결과 미정</option>
+          </select>
+          <button onclick="toggleMonitoringFilter('teacher')" id="teacherMonitorButton" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-star mr-1"></i>상위권 모니터링</button>
+        </div>
         <div class="flex items-center space-x-2">
           <button onclick="openRecordModal()" class="bg-indigo-600 hover:bg-indigo-700 text-xs text-white font-semibold px-3 py-2 rounded-lg transition shadow flex items-center gap-1.5">
             <i class="fa-solid fa-plus"></i>
@@ -750,13 +789,75 @@
     let selectedType = null;
     let selectedUniversity = null;
     let typeChartInstance = null;
+    let monitoredStudents = readLocalJsonSafe('jinsang_monitored_students_v1', {});
+    let teacherMonitorOnly = false;
+    let manageMonitorOnly = false;
 
     // Database Storage
     let rawDatabase = [];
+    let teacherLocks = {};
+    let teacherConsultations = {};
+    let teacherCalendarMemos = {};
+    let serverReady = false;
+    let serverLoading = false;
+
+    function readLocalJsonSafe(key, fallback) {
+      try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
+      catch (e) { return fallback; }
+    }
+    function saveLocalJsonSafe(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    }
+
+    function isAppsScriptRuntime() {
+      return typeof google !== 'undefined' && google.script && google.script.run;
+    }
+
+    function callServer(functionName, ...args) {
+      return new Promise((resolve, reject) => {
+        if (!isAppsScriptRuntime()) {
+          reject(new Error('Google Apps Script 서버 연결이 없습니다. 이 파일은 Apps Script 웹앱에서 실행해야 서버 저장 기능을 사용할 수 있습니다.'));
+          return;
+        }
+        try {
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[functionName](...args);
+        } catch (err) { reject(err); }
+      });
+    }
+
+    async function loadServerData(showError = true) {
+      if (!isAppsScriptRuntime()) return;
+      serverLoading = true;
+      try {
+        const data = await callServer('getInitialData');
+        rawDatabase = Array.isArray(data.applications) ? data.applications : [];
+        years = Array.isArray(data.years) && data.years.length ? data.years : years;
+        passwords = { ...passwords, ...(data.passwords || {}) };
+        teacherLocks = data.locks || {};
+        teacherConsultations = data.consultations || {};
+        teacherCalendarMemos = data.calendarMemos || {};
+        serverReady = true;
+        populateYearDropdowns();
+        if (currentRole === 'student') renderStudentDashboard();
+        if (currentRole === 'teacher') {
+          if (!document.getElementById('teacherOverallSection').classList.contains('hidden')) renderEditorTable();
+          if (!document.getElementById('teacherManagementSection').classList.contains('hidden')) renderClassManagement();
+        }
+      } catch (err) {
+        console.error(err);
+        if (showError) alert('서버 데이터를 불러오지 못했습니다.\n' + (err.message || err));
+      } finally { serverLoading = false; }
+    }
+
+    function handleServerError(err, message='서버 저장 중 오류가 발생했습니다.') {
+      console.error(err);
+      alert(message + '\n' + (err && err.message ? err.message : err));
+    }
 
     // Initialize Application
     window.addEventListener('DOMContentLoaded', () => {
       populateYearDropdowns();
+      loadServerData();
     });
 
     // Populate Year Dropdowns
@@ -1053,12 +1154,7 @@
     }
 
     function filterStudentUnivSearch() {
-      const query = document.getElementById('univSearchInput').value.trim();
-      if (query) {
-        selectedUniversity = query;
-      } else {
-        selectedUniversity = null;
-      }
+      selectedUniversity = null;
       renderStudentResultTable();
     }
 
@@ -1169,131 +1265,75 @@
 
     function renderStudentResultTable() {
       const baseDataset = getFilteredData();
-      const searchQuery = document.getElementById('univSearchInput').value.trim().toLowerCase();
-
-      // 아무것도 선택하지 않은 초기 화면
-      const isOverview = !selectedType &&
-                         !selectedUniversity &&
-                         selectedRegion === '전체' &&
-                         !searchQuery;
-
+      const searchQuery = (document.getElementById('univSearchInput')?.value || '').trim().toLowerCase();
       const thead = document.getElementById('studentResultTableHead');
       const tbody = document.getElementById('studentResultTableBody');
       const title = document.getElementById('studentResultTitle');
       const hint = document.getElementById('studentResultHint');
-
       tbody.innerHTML = '';
 
-      if (isOverview) {
-        title.innerHTML = `<i class="fa-solid fa-table-list text-indigo-600"></i> 전체 지원대학 목록`;
-        hint.innerText = '전형·지역·대학을 선택하면 상세 지원 내역이 표시됩니다.';
-
-        thead.innerHTML = `
-          <tr class="bg-slate-100 border-b border-slate-200 text-slate-700">
-            <th class="py-2.5 px-3 text-left">대학명</th>
-            <th class="py-2.5 px-3 text-center">전체</th>
-            <th class="py-2.5 px-3 text-center">교과</th>
-            <th class="py-2.5 px-3 text-center">종합</th>
-            <th class="py-2.5 px-3 text-center">논술</th>
-            <th class="py-2.5 px-3 text-center">실기/실적</th>
-          </tr>`;
-
-        const universityMap = new Map();
-
-        baseDataset.forEach(item => {
-          const university = summarizeUniv(item.university);
-          if (!university) return;
-
-          if (!universityMap.has(university)) {
-            universityMap.set(university, { total: 0, 교과: 0, 종합: 0, 논술: 0, '실기/실적': 0 });
-          }
-
-          const info = universityMap.get(university);
-          info.total++;
-
-          const type = getApplicationType(item);
-          if (info[type] !== undefined) info[type]++;
-        });
-
-        const rows = Array.from(universityMap.entries())
-          .sort((a,b) => b[1].total - a[1].total || a[0].localeCompare(b[0], 'ko'));
-
-        if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">지원 대학 데이터가 없습니다.</td></tr>`;
-          return;
-        }
-
-        tbody.innerHTML = rows.map(([university, info]) => `
-          <tr class="hover:bg-slate-50 border-b border-slate-100">
-            <td class="py-2.5 px-3 font-bold text-slate-800">${escapeHtml(university)}</td>
-            <td class="py-2.5 px-3 text-center font-bold">${info.total}건</td>
-            <td class="py-2.5 px-3 text-center">${info.교과}건</td>
-            <td class="py-2.5 px-3 text-center">${info.종합}건</td>
-            <td class="py-2.5 px-3 text-center">${info.논술}건</td>
-            <td class="py-2.5 px-3 text-center">${info['실기/실적']}건</td>
-          </tr>
-        `).join('');
-
-        return;
-      }
-
       let dataset = baseDataset;
-
-      if (selectedType) {
-        dataset = dataset.filter(d => getApplicationType(d) === selectedType);
-      }
-
-      if (selectedRegion !== '전체') {
-        dataset = dataset.filter(d => getRegionOfItem(d) === selectedRegion);
-      }
+      if (selectedType) dataset = dataset.filter(d => getApplicationType(d) === selectedType);
+      if (selectedRegion !== '전체') dataset = dataset.filter(d => getRegionOfItem(d) === selectedRegion);
 
       if (selectedUniversity) {
         const query = selectedUniversity.toLowerCase();
         dataset = dataset.filter(d => (d.university || '').toLowerCase().includes(query));
-      }
-
-      if (searchQuery && !selectedUniversity) {
-        dataset = dataset.filter(d => (d.university || '').toLowerCase().includes(searchQuery));
-      }
-
-      const filterLabel = [
-        selectedType ? `${selectedType} 전형` : '',
-        selectedRegion !== '전체' ? selectedRegion : '',
-        selectedUniversity || (searchQuery ? `"${searchQuery}"` : '')
-      ].filter(Boolean).join(' · ');
-
-      title.innerHTML = `<i class="fa-solid fa-table-list text-indigo-600"></i> 상세 지원 내역`;
-      hint.innerText = filterLabel ? `선택 조건: ${filterLabel}` : '상세 지원 내역';
-
-      // 상세 지원 내역에는 요청된 항목만 표시합니다.
-      thead.innerHTML = `
-        <tr class="bg-slate-100 border-b border-slate-200 text-slate-700">
-          <th class="py-2.5 px-3 text-center">세부유형</th>
-          <th class="py-2.5 px-3 text-center">모집단위</th>
-          <th class="py-2.5 px-3 text-center">1단계</th>
-          <th class="py-2.5 px-3 text-center">최종단계</th>
-          <th class="py-2.5 px-3 text-center">불합격사유</th>
-        </tr>`;
-
-      if (dataset.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">조건에 맞는 지원 상세 내역이 없습니다.</td></tr>`;
+        title.innerHTML = `<i class="fa-solid fa-list text-indigo-600"></i> ${escapeHtml(summarizeUniv(selectedUniversity))} 상세 지원 내역`;
+        hint.innerHTML = `<button class="student-detail-back" onclick="clearSelectedUniversity()"><i class="fa-solid fa-arrow-left mr-1"></i>대학 목록으로</button>`;
+        thead.innerHTML = `
+          <tr class="bg-slate-100 border-b border-slate-200 text-slate-700">
+            <th class="py-2.5 px-3 text-center">대학명</th>
+            <th class="py-2.5 px-3 text-center">세부유형</th>
+            <th class="py-2.5 px-3 text-center">모집단위</th>
+            <th class="py-2.5 px-3 text-center">1단계</th>
+            <th class="py-2.5 px-3 text-center">최종단계</th>
+            <th class="py-2.5 px-3 text-center">불합격사유</th>
+          </tr>`;
+        if (!dataset.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">조건에 맞는 지원 상세 내역이 없습니다.</td></tr>`;
+          return;
+        }
+        dataset.forEach(app => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 text-center font-bold">${escapeHtml(summarizeUniv(app.university) || '-')}</td>
+            <td class="py-2.5 px-3 text-center">${escapeHtml(summarizeDetailType(app.detailType) || '-')}</td>
+            <td class="py-2.5 px-3 text-center">${escapeHtml(app.dept || '-')}</td>
+            <td class="py-2.5 px-3 text-center">${renderStatusBadge(app.step1)}</td>
+            <td class="py-2.5 px-3 text-center">${renderStatusBadge(app.finalStep)}</td>
+            <td class="py-2.5 px-3 text-center">${escapeHtml(app.failReason || '-')}</td>`;
+          tbody.appendChild(tr);
+        });
         return;
       }
 
-      dataset.forEach(app => {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
-
-        tr.innerHTML = `
-          <td class="py-2.5 px-3 text-center">${escapeHtml(summarizeDetailType(app.detailType) || '-')}</td>
-          <td class="py-2.5 px-3 text-center">${escapeHtml(app.dept || '-')}</td>
-          <td class="py-2.5 px-3 text-center">${renderStatusBadge(app.step1)}</td>
-          <td class="py-2.5 px-3 text-center">${renderStatusBadge(app.finalStep)}</td>
-          <td class="py-2.5 px-3 text-center">${escapeHtml(app.failReason || '-')}</td>
-        `;
-
-        tbody.appendChild(tr);
+      if (searchQuery) dataset = dataset.filter(d => (d.university || '').toLowerCase().includes(searchQuery));
+      const universityMap = new Map();
+      dataset.forEach(item => {
+        const university = summarizeUniv(item.university);
+        if (!university) return;
+        universityMap.set(university, (universityMap.get(university) || 0) + 1);
       });
+      const rows = Array.from(universityMap.entries()).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0], 'ko'));
+      const filterLabel = [selectedType ? `${selectedType} 전형` : '', selectedRegion !== '전체' ? selectedRegion : '', searchQuery ? `"${searchQuery}"` : ''].filter(Boolean).join(' · ');
+      title.innerHTML = `<i class="fa-solid fa-graduation-cap text-indigo-600"></i> 상세 지원 내역`;
+      hint.innerText = filterLabel ? `조건에 맞는 대학을 선택하면 상세 내역이 표시됩니다 · ${filterLabel}` : '대학명을 클릭하면 해당 대학의 상세 지원 내역이 표시됩니다.';
+      thead.innerHTML = '';
+
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td class="py-10 text-center text-slate-400" colspan="1">조건에 맞는 지원 대학이 없습니다.</td></tr>`;
+        return;
+      }
+      const wrap = document.createElement('tr');
+      wrap.innerHTML = `<td colspan="1" class="p-4"><div class="student-univ-buttons">${rows.map(([university,count]) => `<button class="student-univ-button" onclick="selectUniversity('${escapeJs(university)}')"><span>${escapeHtml(university)}</span><span class="count">${count}개</span></button>`).join('')}</div></td>`;
+      tbody.appendChild(wrap);
+    }
+
+    function clearSelectedUniversity() {
+      selectedUniversity = null;
+      renderStudentResultTable();
     }
 
     function escapeHtml(value) {
@@ -1321,6 +1361,47 @@
     // =================================================================
     // TEACHER & ADMIN EDITOR TABLE LOGIC
     // =================================================================
+    function isStudentMonitored(studentOrKey) {
+      const key = typeof studentOrKey === 'string' ? studentOrKey : studentKeyOf(studentOrKey);
+      return !!monitoredStudents[key];
+    }
+    function toggleStudentMonitoring(key) {
+      if (monitoredStudents[key]) delete monitoredStudents[key];
+      else monitoredStudents[key] = true;
+      saveLocalJsonSafe('jinsang_monitored_students_v1', monitoredStudents);
+      renderEditorTable();
+      if (!document.getElementById('teacherManagementSection').classList.contains('hidden')) renderSummaryCards();
+    }
+    function toggleMonitoringFilter(scope) {
+      if (scope === 'teacher') {
+        teacherMonitorOnly = !teacherMonitorOnly;
+        const sel = document.getElementById('teacherStudentFilter');
+        if (sel) sel.value = teacherMonitorOnly ? 'monitor' : 'all';
+        const btn = document.getElementById('teacherMonitorButton');
+        if (btn) { btn.classList.toggle('ring-2', teacherMonitorOnly); btn.classList.toggle('ring-amber-300', teacherMonitorOnly); }
+        renderEditorTable();
+      } else {
+        manageMonitorOnly = !manageMonitorOnly;
+        const sel = document.getElementById('manageStudentFilter');
+        if (sel) sel.value = manageMonitorOnly ? 'monitor' : 'all';
+        const btn = document.getElementById('manageMonitorButton');
+        if (btn) { btn.classList.toggle('ring-2', manageMonitorOnly); btn.classList.toggle('ring-amber-300', manageMonitorOnly); }
+        renderSummaryCards();
+      }
+    }
+    function studentMatchesFilter(student, filterValue) {
+      const apps = student.applications || [];
+      if (filterValue === 'monitor') return isStudentMonitored(student);
+      if (filterValue === 'pass') return apps.some(a => a.finalStep === '합격' || a.finalStep === '추합');
+      if (filterValue === 'step1') return apps.some(a => a.step1 === '1차합격' || a.step1 === '합격');
+      if (filterValue === 'pending') return apps.some(a => !a.step1 && !a.finalStep);
+      return true;
+    }
+    function getEditorStudentFilters() {
+      const search = (document.getElementById('teacherStudentSearch')?.value || '').trim().toLowerCase();
+      const filter = document.getElementById('teacherStudentFilter')?.value || 'all';
+      return { search, filter };
+    }
     function renderEditorTable() {
       const selectedClass = document.getElementById('classSelect').value;
       const normalizedTargetClass = normalizeClassName(selectedClass);
@@ -1336,7 +1417,12 @@
         studentGroupMap.get(key).applications.push(item);
       });
 
-      const groupedStudents = Array.from(studentGroupMap.values());
+      let groupedStudents = Array.from(studentGroupMap.values());
+      const { search, filter } = getEditorStudentFilters();
+      groupedStudents = groupedStudents.filter(student => {
+        const searchHit = !search || String(student.name || '').toLowerCase().includes(search) || String(student.num || '').toLowerCase().includes(search);
+        return searchHit && studentMatchesFilter(student, filter);
+      });
       groupedStudents.sort((a, b) => Number(a.num) - Number(b.num));
 
       document.getElementById('studentCountBadge').innerText = `총 학생수: ${groupedStudents.length}명`;
@@ -1351,10 +1437,11 @@
 
       groupedStudents.forEach(student => {
         const appCount = student.applications.length;
+        const monitored = isStudentMonitored(student);
 
         student.applications.forEach((app, index) => {
           const tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-50/80 transition border-b border-slate-200";
+          tr.className = `hover:bg-slate-50/80 transition border-b border-slate-200 ${monitored ? 'student-monitor-row' : ''}`;
 
           let studentInfoCells = '';
           if (index === 0) {
@@ -1362,7 +1449,12 @@
             studentInfoCells = `
               <td rowspan="${appCount}" class="py-2 px-2 text-center font-semibold text-slate-700 bg-white border-r border-slate-200 align-middle">${classShort}</td>
               <td rowspan="${appCount}" class="py-2 px-2 text-center font-medium text-slate-600 bg-white border-r border-slate-200 align-middle">${student.num}</td>
-              <td rowspan="${appCount}" class="py-2 px-3 text-center font-bold text-slate-900 bg-white border-r border-slate-200 align-middle">${student.name}</td>
+              <td rowspan="${appCount}" class="py-2 px-3 text-center font-bold text-slate-900 bg-white border-r border-slate-200 align-middle">
+                <div class="flex items-center justify-center gap-1">
+                  <button onclick="toggleStudentMonitoring('${escapeJs(studentKeyOf(student))}')" class="monitor-star ${monitored ? 'active' : ''} no-print" title="상위권 모니터링 지정"><i class="fa-solid fa-star"></i></button>
+                  <span>${escapeHtml(student.name)}</span>
+                </div>
+              </td>
             `;
           }
 
@@ -1440,12 +1532,14 @@
         </select>`;
     }
 
-    function updateStatus(id, field, value) {
+    async function updateStatus(id, field, value) {
       const target = rawDatabase.find(item => item.id === id);
-      if (target) {
-        target[field] = value;
-        renderEditorTable();
-      }
+      if (!target) return;
+      const oldValue = target[field];
+      target[field] = value;
+      renderEditorTable();
+      try { await callServer('updateApplication', { id:Number(id), [field]:value }); }
+      catch (err) { target[field] = oldValue; renderEditorTable(); handleServerError(err, '지원 상태 저장에 실패했습니다.'); }
     }
 
     // Modal Control & Record Management
@@ -1486,31 +1580,29 @@
     function getStudentByKey(key) {
       return getTeacherStudents().find(s => studentKeyOf(s) === key) || null;
     }
-    function getLockMap() { return readLocalJson(teacherLockStoreKey, {}); }
+    function getLockMap() { return teacherLocks || {}; }
     function isStudentLocked(key) { return !!getLockMap()[key]; }
-    function setStudentLocked(key, locked) {
-      const locks = getLockMap();
-      if (locked) locks[key] = true; else delete locks[key];
-      writeLocalJson(teacherLockStoreKey, locks);
+    async function setStudentLocked(key, locked) {
+      const before = !!teacherLocks[key];
+      if (locked) teacherLocks[key] = true; else delete teacherLocks[key];
+      renderClassManagement();
+      try { await callServer('setStudentLock', key, !!locked); }
+      catch (err) { if (before) teacherLocks[key]=true; else delete teacherLocks[key]; renderClassManagement(); handleServerError(err, '학생 잠금 상태 저장에 실패했습니다.'); }
     }
     function areAllStudentsLocked() {
       const students = getTeacherStudents();
       return students.length > 0 && students.every(s => isStudentLocked(studentKeyOf(s)));
     }
-    function toggleAllStudentLocks() {
+    async function toggleAllStudentLocks() {
       const shouldLock = !areAllStudentsLocked();
-      const locks = getLockMap();
-      getTeacherStudents().forEach(s => {
-        const key = studentKeyOf(s);
-        if (shouldLock) locks[key] = true; else delete locks[key];
-      });
-      writeLocalJson(teacherLockStoreKey, locks);
+      const students = getTeacherStudents();
+      const before = {...teacherLocks};
+      students.forEach(s => { const key=studentKeyOf(s); if (shouldLock) teacherLocks[key]=true; else delete teacherLocks[key]; });
       renderClassManagement();
+      try { await callServer('setAllStudentLocks', students.map(s=>studentKeyOf(s)), shouldLock); }
+      catch (err) { teacherLocks=before; renderClassManagement(); handleServerError(err, '전체 잠금 상태 저장에 실패했습니다.'); }
     }
-    function toggleStudentLock(key) {
-      setStudentLocked(key, !isStudentLocked(key));
-      renderClassManagement();
-    }
+    async function toggleStudentLock(key) { await setStudentLocked(key, !isStudentLocked(key)); }
     function showTeacherModeChooser() {
       document.getElementById('teacherModeChooser').classList.remove('hidden');
       document.getElementById('teacherManagementSection').classList.add('hidden');
@@ -1550,50 +1642,60 @@
       if (classManageMode === 'consult') renderConsultMode();
       if (classManageMode === 'calendar') renderCalendar();
     }
-    function updateApplicationField(id, field, value) {
+    async function updateApplicationField(id, field, value) {
       const target = rawDatabase.find(r => r.id === Number(id));
       if (!target) return;
       const key = studentKeyOf({ num:target.num, name:target.name, gradeClass:target.gradeClass });
       if (isStudentLocked(key)) return;
+      const oldValue = target[field];
       target[field] = value;
       renderSummaryCards();
+      try { await callServer('updateApplication', { id:Number(id), [field]:value }); }
+      catch (err) { target[field]=oldValue; renderSummaryCards(); handleServerError(err,'지원 내역 저장에 실패했습니다.'); }
     }
-    function addApplicationForStudent(studentKey) {
-      const student = getStudentByKey(studentKey);
+    async function addApplicationForStudent(studentKey) {
+      const student=getStudentByKey(studentKey);
       if (!student || isStudentLocked(studentKey)) return;
-      const newId = Date.now() + Math.floor(Math.random()*1000);
-      rawDatabase.push({ id:newId, year:document.getElementById('globalYearSelect').value === '전체' ? (years[0] || '') : document.getElementById('globalYearSelect').value, gradeClass:student.gradeClass, num:Number(student.num), name:student.name, university:'', detailType:'', dept:'', recruitCount:'', region:'', minExam:'', interviewDate:'', step1:'', finalDate:'', finalStep:'', failReason:'' });
-      renderSummaryCards();
+      const record={id:Date.now()+Math.floor(Math.random()*1000),year:document.getElementById('globalYearSelect').value==='전체'?(years[0]||''):document.getElementById('globalYearSelect').value,gradeClass:student.gradeClass,num:Number(student.num),name:student.name,university:'',detailType:'',dept:'',recruitCount:'',region:'',minExam:'',interviewDate:'',step1:'',finalDate:'',finalStep:'',failReason:''};
+      rawDatabase.push(record); renderSummaryCards();
+      try { await callServer('addApplication',record); } catch(err){ rawDatabase=rawDatabase.filter(r=>r.id!==record.id); renderSummaryCards(); handleServerError(err,'지원 내역 추가에 실패했습니다.'); }
     }
-    function deleteApplicationFromStudent(id) {
-      const target = rawDatabase.find(r => r.id === Number(id));
-      if (!target) return;
-      const key = studentKeyOf({ num:target.num, name:target.name, gradeClass:target.gradeClass });
-      if (isStudentLocked(key)) return;
-      if (!confirm('이 지원 내역을 삭제할까요?')) return;
-      rawDatabase = rawDatabase.filter(r => r.id !== Number(id));
-      renderSummaryCards();
+    async function deleteApplicationFromStudent(id) {
+      const target=rawDatabase.find(r=>r.id===Number(id)); if(!target)return;
+      const key=studentKeyOf({num:target.num,name:target.name,gradeClass:target.gradeClass});
+      if(isStudentLocked(key)||!confirm('이 지원 내역을 삭제할까요?'))return;
+      rawDatabase=rawDatabase.filter(r=>r.id!==Number(id)); renderSummaryCards();
+      try{await callServer('deleteApplication',Number(id));}catch(err){rawDatabase.push(target);renderSummaryCards();handleServerError(err,'지원 내역 삭제에 실패했습니다.');}
     }
-    function editStudentNameFromCard(key) {
-      const student = getStudentByKey(key);
-      if (!student || isStudentLocked(key)) return;
-      const newName = prompt('학생 이름을 수정하세요.', student.name);
-      if (newName === null || !newName.trim() || newName.trim() === student.name) return;
-      rawDatabase.forEach(r => {
-        if (studentKeyOf({num:r.num,name:r.name,gradeClass:r.gradeClass}) === key) r.name = newName.trim();
-      });
+    async function editStudentNameFromCard(key) {
+      const student=getStudentByKey(key); if(!student||isStudentLocked(key))return;
+      const newName=prompt('학생 이름을 수정하세요.',student.name);
+      if(newName===null||!newName.trim()||newName.trim()===student.name)return;
+      const oldName=student.name, nn=newName.trim();
+      rawDatabase.forEach(r=>{if(studentKeyOf({num:r.num,name:r.name,gradeClass:r.gradeClass})===key)r.name=nn;});
+      const newKey=studentKeyOf({...student,name:nn});
+      if(teacherLocks[key]){teacherLocks[newKey]=teacherLocks[key];delete teacherLocks[key];}
+      if(teacherConsultations[key]){teacherConsultations[newKey]=teacherConsultations[key];delete teacherConsultations[key];}
       renderClassManagement();
+      try{await callServer('updateStudentName',{gradeClass:student.gradeClass,num:Number(student.num),oldName,newName:nn});}
+      catch(err){rawDatabase.forEach(r=>{if(studentKeyOf({num:r.num,name:r.name,gradeClass:r.gradeClass})===newKey)r.name=oldName;});renderClassManagement();handleServerError(err,'학생 이름 저장에 실패했습니다.');}
     }
     function renderSummaryCards() {
       const container = document.getElementById('studentSummaryGrid');
       if (!container) return;
-      const students = getTeacherStudents();
+      let students = getTeacherStudents();
+      const manageSearch = (document.getElementById('manageStudentSearch')?.value || '').trim().toLowerCase();
+      const manageFilter = document.getElementById('manageStudentFilter')?.value || 'all';
+      students = students.filter(student => {
+        const searchHit = !manageSearch || String(student.name || '').toLowerCase().includes(manageSearch) || String(student.num || '').toLowerCase().includes(manageSearch);
+        return searchHit && studentMatchesFilter(student, manageFilter);
+      });
       document.getElementById('manageStudentCount').innerText = `학생 ${students.length}명`;
       document.getElementById('globalLockButton').innerHTML = areAllStudentsLocked() ? '<i class="fa-solid fa-lock-open mr-1"></i>전체 잠금 해제' : '<i class="fa-solid fa-lock mr-1"></i>전체 잠금';
       if (!students.length) { container.innerHTML = '<div class="col-span-full py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">선택 학급에 등록된 학생이 없습니다.</div>'; return; }
       container.innerHTML = students.map(student => {
-        const key = studentKeyOf(student), locked = isStudentLocked(key);
-        return `<article class="student-summary-card ${locked ? 'locked' : ''}">
+        const key = studentKeyOf(student), locked = isStudentLocked(key), monitored = isStudentMonitored(student);
+        return `<article class="student-summary-card ${locked ? 'locked' : ''} ${monitored ? 'student-monitor-row' : ''}">
           <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <span class="text-[11px] bg-indigo-100 text-indigo-700 rounded-full px-2 py-1 font-extrabold">${escapeHtml(student.num)}</span>
@@ -1601,6 +1703,7 @@
               <span class="text-[10px] text-slate-400">${escapeHtml(normalizeClassName(student.gradeClass))}</span>
             </div>
             <div class="flex items-center gap-1 no-print">
+              <button onclick="toggleStudentMonitoring('${escapeJs(key)}')" class="monitor-star ${monitored?'active':''} text-[13px] px-1" title="상위권 모니터링 지정"><i class="fa-solid fa-star"></i></button>
               <button onclick="editStudentNameFromCard('${escapeJs(key)}')" class="text-[10px] px-2 py-1 rounded bg-white border border-slate-200 ${locked?'opacity-40 cursor-not-allowed':''}" ${locked?'disabled':''}>이름 수정</button>
               <button onclick="toggleStudentLock('${escapeJs(key)}')" class="text-[10px] px-2 py-1 rounded ${locked?'bg-amber-100 text-amber-700':'bg-slate-200 text-slate-700'} font-bold"><i class="fa-solid ${locked?'fa-lock':'fa-lock-open'} mr-1"></i>${locked?'잠금':'개별 잠금'}</button>
             </div>
@@ -1656,25 +1759,22 @@
     }
     function addConsultationRecord() {
       if (!consultStudentKey) return;
-      const all = readLocalJson(teacherConsultStoreKey, {});
-      if (!all[consultStudentKey]) all[consultStudentKey] = [];
-      const date = new Date().toISOString().slice(0,10);
-      all[consultStudentKey].unshift({ id:Date.now(), date, open:true, html:'' });
-      writeLocalJson(teacherConsultStoreKey, all);
-      renderConsultations();
+      const rec={id:Date.now(),date:new Date().toISOString().slice(0,10),open:true,html:''};
+      if(!teacherConsultations[consultStudentKey])teacherConsultations[consultStudentKey]=[];
+      teacherConsultations[consultStudentKey].unshift(rec); renderConsultations();
+      callServer('addConsultation',consultStudentKey,rec).catch(err=>handleServerError(err,'상담 기록 추가에 실패했습니다.'));
     }
     function updateConsultationHtml(id, html) {
-      const all = readLocalJson(teacherConsultStoreKey, {});
-      const list = all[consultStudentKey] || [];
-      const rec = list.find(x => x.id === Number(id));
-      if (rec) { rec.html = html; writeLocalJson(teacherConsultStoreKey, all); }
+      const list=teacherConsultations[consultStudentKey]||[],rec=list.find(x=>x.id===Number(id));
+      if(rec){rec.html=html;callServer('updateConsultation',consultStudentKey,rec).catch(err=>handleServerError(err,'상담 내용 저장에 실패했습니다.'));}
     }
     function toggleConsultation(id) {
-      const all = readLocalJson(teacherConsultStoreKey, {}), list = all[consultStudentKey] || [], rec = list.find(x=>x.id===Number(id));
-      if (rec) { rec.open = !rec.open; writeLocalJson(teacherConsultStoreKey, all); renderConsultations(); }
+      const list=teacherConsultations[consultStudentKey]||[],rec=list.find(x=>x.id===Number(id));
+      if(rec){rec.open=!rec.open;renderConsultations();callServer('updateConsultation',consultStudentKey,rec).catch(err=>handleServerError(err,'상담 기록 상태 저장에 실패했습니다.'));}
     }
     function deleteConsultation(id) {
-      const all = readLocalJson(teacherConsultStoreKey, {}); all[consultStudentKey] = (all[consultStudentKey]||[]).filter(x=>x.id!==Number(id)); writeLocalJson(teacherConsultStoreKey,all); renderConsultations();
+      teacherConsultations[consultStudentKey]=(teacherConsultations[consultStudentKey]||[]).filter(x=>x.id!==Number(id));renderConsultations();
+      callServer('deleteConsultation',consultStudentKey,Number(id)).catch(err=>handleServerError(err,'상담 기록 삭제에 실패했습니다.'));
     }
     function setConsultFontSize(size) { document.execCommand('fontSize', false, String(size)); }
     function setConsultColor(color) { document.execCommand('foreColor', false, color); }
@@ -1696,7 +1796,7 @@
       });
     }
     function renderConsultations() {
-      const all = readLocalJson(teacherConsultStoreKey, {}), list = all[consultStudentKey] || [], container = document.getElementById('consultationList');
+      const list=teacherConsultations[consultStudentKey]||[],container = document.getElementById('consultationList');
       if (!list.length) { container.innerHTML = '<div class="py-10 text-center text-slate-400 text-xs border border-dashed border-slate-300 rounded-lg">상담 기록이 없습니다. 오른쪽 위의 추가하기를 눌러 기록을 시작하세요.</div>'; return; }
       container.innerHTML = list.map(rec => `<div class="consult-date-row">
         <div class="consult-date-head" onclick="toggleConsultation(${rec.id})"><strong class="text-xs text-slate-700"><i class="fa-regular fa-calendar mr-1 text-indigo-500"></i>${escapeHtml(rec.date)}</strong><div class="flex items-center gap-2"><button onclick="event.stopPropagation();deleteConsultation(${rec.id})" class="no-print text-[10px] text-rose-500">삭제</button><i class="fa-solid ${rec.open?'fa-chevron-up':'fa-chevron-down'} text-slate-400 text-xs"></i></div></div>
@@ -1756,12 +1856,12 @@
       selectedCalendarEventKey=key;
       const event=getCalendarEvents().find(e=>`${e.id}_${e.type}`===key); if(!event)return;
       renderCalendarDayList(dateKey(event.date));
-      const memos=readLocalJson(teacherCalendarMemoKey,{}); const memo=memos[key]||'';
+      const memo=teacherCalendarMemos[key]||'';
       document.getElementById('calendarMemoPanel').classList.remove('hidden');
       document.getElementById('calendarMemoTitle').innerText=`${event.studentName} · ${event.university||'대학 미입력'} · ${event.label}`;
       document.getElementById('calendarMemoInput').value=memo;
     }
-    function saveCalendarMemo() { if(!selectedCalendarEventKey)return; const memos=readLocalJson(teacherCalendarMemoKey,{}); memos[selectedCalendarEventKey]=document.getElementById('calendarMemoInput').value; writeLocalJson(teacherCalendarMemoKey,memos); alert('메모가 저장되었습니다.'); }
+    function saveCalendarMemo(){if(!selectedCalendarEventKey)return;const memo=document.getElementById('calendarMemoInput').value;teacherCalendarMemos[selectedCalendarEventKey]=memo;callServer('saveCalendarMemo',selectedCalendarEventKey,memo).then(()=>alert('메모가 서버에 저장되었습니다.')).catch(err=>handleServerError(err,'일정 메모 저장에 실패했습니다.'));}
 
     function openRecordModal(editId = null) {
       document.getElementById('recordModal').classList.remove('hidden');
@@ -1808,7 +1908,7 @@
       document.getElementById('recordModal').classList.add('hidden');
     }
 
-    function saveRecord(e) {
+    async function saveRecord(e) {
       e.preventDefault();
       const editId = document.getElementById('editRecordId').value;
 
@@ -1830,21 +1930,18 @@
         failReason: document.getElementById('inputFailReason').value.trim()
       };
 
-      if (editId) {
-        const index = rawDatabase.findIndex(r => r.id === Number(editId));
-        if (index !== -1) rawDatabase[index] = { ...rawDatabase[index], ...recordData };
-      } else {
-        rawDatabase.push({ id: Date.now(), ...recordData });
-      }
-
-      closeRecordModal();
-      renderEditorTable();
+      let savedRecord;
+      if(editId){const index=rawDatabase.findIndex(r=>r.id===Number(editId));if(index!==-1){savedRecord={...rawDatabase[index],...recordData};rawDatabase[index]=savedRecord;}}
+      else{savedRecord={id:Date.now(),...recordData};rawDatabase.push(savedRecord);}
+      closeRecordModal();renderEditorTable();
+      try{if(editId)await callServer('updateApplication',savedRecord);else await callServer('addApplication',savedRecord);}
+      catch(err){await loadServerData(false);handleServerError(err,'지원 내역 서버 저장에 실패했습니다.');}
     }
 
     function deleteRecord(id) {
       if (confirm('해당 지원 내역을 삭제하시겠습니까?')) {
-        rawDatabase = rawDatabase.filter(r => r.id !== id);
-        renderEditorTable();
+        const backup=rawDatabase.find(r=>r.id===id);rawDatabase=rawDatabase.filter(r=>r.id!==id);renderEditorTable();
+        callServer('deleteApplication',Number(id)).catch(async err=>{if(backup)rawDatabase.push(backup);renderEditorTable();handleServerError(err,'지원 내역 삭제 저장에 실패했습니다.');});
       }
     }
 
@@ -1875,6 +1972,7 @@
         input.value = '';
         populateYearDropdowns();
         renderYearList();
+        callServer('saveYears', years).catch(err=>handleServerError(err,'입시연도 저장에 실패했습니다.'));
       }
     }
 
@@ -1887,6 +1985,7 @@
         years = years.filter(item => item !== y);
         populateYearDropdowns();
         renderYearList();
+        callServer('saveYears', years).catch(err=>handleServerError(err,'입시연도 저장에 실패했습니다.'));
       }
     }
 
@@ -1907,8 +2006,7 @@
       passwords.student = document.getElementById('pwdStudent').value;
       passwords.teacher = document.getElementById('pwdTeacher').value;
       passwords.admin = document.getElementById('pwdAdmin').value;
-      alert('비밀번호가 변경되었습니다.');
-      closePasswordModal();
+      callServer('savePasswords',passwords).then(()=>{alert('비밀번호가 서버에 저장되었습니다.');closePasswordModal();}).catch(err=>handleServerError(err,'비밀번호 저장에 실패했습니다.'));
     }
 
     // Excel Parsing & File Upload
@@ -1919,7 +2017,7 @@
       const currentYear = document.getElementById('globalYearSelect').value !== "전체" ? document.getElementById('globalYearSelect').value : years[0];
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = async function(e) {
         try {
           const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, { type: 'array' });
@@ -1955,9 +2053,9 @@
             };
           });
 
-          rawDatabase = [...rawDatabase, ...parsedData];
-          renderEditorTable();
-          alert(`[${currentYear}] 데이터베이스에 총 ${parsedData.length}건이 누적 업로드되었습니다.`);
+          rawDatabase=[...rawDatabase,...parsedData];renderEditorTable();
+          try{await callServer('bulkAddApplications',parsedData);alert(`[${currentYear}] 데이터베이스에 총 ${parsedData.length}건이 서버에 저장되었습니다.`);}
+          catch(err){await loadServerData(false);handleServerError(err,'엑셀 데이터 서버 저장에 실패했습니다.');}
         } catch (err) {
           alert('엑셀 파일 처리 중 오류가 발생했습니다.');
           console.error(err);
