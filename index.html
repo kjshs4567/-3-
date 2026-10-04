@@ -129,12 +129,21 @@
     .teacher-mode-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(15,23,42,.08); }
     .teacher-tabs button.active { background:#4f46e5; color:#fff; box-shadow:0 3px 8px rgba(79,70,229,.22); }
     .student-summary-card { border:1px solid #dbe3ef; border-radius:14px; background:#fff; box-shadow:0 3px 12px rgba(15,23,42,.05); overflow:hidden; }
-    .student-summary-card.locked { background:#f8fafc; }
-    .application-edit-row { display:grid; grid-template-columns: 30px minmax(150px,1.2fr) minmax(120px,1fr) minmax(130px,1fr) 90px 90px minmax(120px,1fr) 34px; gap:6px; align-items:center; }
-    .application-edit-row input, .application-edit-row select { min-width:0; }
+    .student-summary-card.collapsed { background:#f8fafc; }
+    .application-edit-row { display:grid; grid-template-columns: var(--summary-cols, .4fr 1.2fr 1fr 1.3fr .9fr .8fr .8fr 1.2fr .35fr); gap:6px; align-items:center; width:100%; min-width:0; }
+    .application-edit-row > * { min-width:0; max-width:100%; }
+    .application-edit-row input, .application-edit-row select { min-width:0; max-width:100%; }
     .summary-field { border:1px solid #dbe3ef; border-radius:7px; padding:6px 7px; font-size:11px; background:#fff; outline:none; width:100%; }
     .summary-field:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.10); }
     .summary-field:disabled { background:#eef2f7; color:#94a3b8; cursor:not-allowed; }
+    .summary-field { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .summary-width-panel { display:none; grid-template-columns:repeat(3,minmax(180px,1fr)); gap:8px; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; margin-bottom:10px; }
+    .summary-width-panel.open { display:grid; }
+    .summary-width-control { display:grid; grid-template-columns:58px 1fr 42px; align-items:center; gap:6px; font-size:10px; color:#64748b; }
+    .summary-width-control input[type=range] { width:100%; accent-color:#4f46e5; }
+    .summary-width-control output { text-align:right; font-weight:800; color:#475569; }
+    .summary-collapse-button { border:1px solid #cbd5e1; background:#fff; color:#475569; border-radius:7px; padding:5px 8px; font-size:10px; font-weight:800; }
+    .summary-collapse-button:hover { background:#f1f5f9; }
     .summary-card-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
     .monitor-star { color:#cbd5e1; transition:all .15s ease; }
     .monitor-star.active { color:#f59e0b; transform:scale(1.08); }
@@ -167,8 +176,7 @@
     .print-only-title { display:none; }
     @media (max-width: 1100px) {
       .summary-card-grid, .consult-layout, .calendar-layout { grid-template-columns:1fr; }
-      .application-edit-row { grid-template-columns:30px repeat(2,minmax(120px,1fr)) 90px 90px minmax(120px,1fr) 34px; }
-      .application-edit-row .app-dept { grid-column:span 2; }
+      .summary-width-panel.open { grid-template-columns:repeat(2,minmax(180px,1fr)); }
     }
     @media print {
       body { background:#fff !important; }
@@ -472,7 +480,7 @@
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 class="font-extrabold text-slate-800">학생별 한눈 요약</h3>
-            <p class="text-[11px] text-slate-400 mt-1">학생 이름을 누르면 상담 기록 화면으로 이동합니다. 잠금 상태에서는 수정할 수 없습니다.</p>
+            <p class="text-[11px] text-slate-400 mt-1">학생 이름을 누르면 상담 기록으로 이동합니다. 카드별로 펼치기·접기할 수 있으며 지원 내역은 바로 수정할 수 있습니다.</p>
           </div>
           <div class="teacher-filter-bar no-print">
             <div class="relative">
@@ -488,7 +496,20 @@
             </select>
             <button onclick="toggleMonitoringFilter('manage')" id="manageMonitorButton" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-star mr-1"></i>상위권 모니터링</button>
           </div>
-          <button id="globalLockButton" onclick="toggleAllStudentLocks()" class="no-print text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-lock mr-1"></i>전체 잠금</button>
+          <div class="flex items-center gap-2 no-print">
+            <button onclick="toggleSummaryWidthPanel()" class="text-xs bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-sliders mr-1"></i>칸 너비 조절</button>
+            <button id="globalExpandButton" onclick="toggleAllStudentCards()" class="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-compress mr-1"></i>전체 접기</button>
+          </div>
+        </div>
+        <div id="summaryWidthPanel" class="summary-width-panel no-print">
+          <div class="summary-width-control"><label>연번</label><input data-col="num" type="range" min="0.3" max="0.8" step="0.1" value="0.4" oninput="updateSummaryColumn(this)"><output>0.4</output></div>
+          <div class="summary-width-control"><label>대학명</label><input data-col="univ" type="range" min="0.7" max="2" step="0.1" value="1.2" oninput="updateSummaryColumn(this)"><output>1.2</output></div>
+          <div class="summary-width-control"><label>전형명</label><input data-col="type" type="range" min="0.6" max="1.8" step="0.1" value="1" oninput="updateSummaryColumn(this)"><output>1.0</output></div>
+          <div class="summary-width-control"><label>학과</label><input data-col="dept" type="range" min="0.8" max="2.4" step="0.1" value="1.3" oninput="updateSummaryColumn(this)"><output>1.3</output></div>
+          <div class="summary-width-control"><label>면접/논술일</label><input data-col="date" type="range" min="0.6" max="1.5" step="0.1" value="0.9" oninput="updateSummaryColumn(this)"><output>0.9</output></div>
+          <div class="summary-width-control"><label>1단계</label><input data-col="step1" type="range" min="0.6" max="1.4" step="0.1" value="0.8" oninput="updateSummaryColumn(this)"><output>0.8</output></div>
+          <div class="summary-width-control"><label>최종단계</label><input data-col="final" type="range" min="0.6" max="1.4" step="0.1" value="0.8" oninput="updateSummaryColumn(this)"><output>0.8</output></div>
+          <div class="summary-width-control"><label>불합격사유</label><input data-col="fail" type="range" min="0.7" max="2.2" step="0.1" value="1.2" oninput="updateSummaryColumn(this)"><output>1.2</output></div>
         </div>
         <div id="studentSummaryGrid" class="summary-card-grid"></div>
       </div>
@@ -548,7 +569,9 @@
       
       <!-- Top Control Bar -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
-        <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-3">
+          <button onclick="showTeacherModeChooser()" class="no-print text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-arrow-left mr-1"></i>모드 선택</button>
+          <div class="flex items-center space-x-4">
           <div class="flex items-center space-x-2">
             <label for="classSelect" class="text-sm font-semibold text-slate-700">학급 선택:</label>
             <select id="classSelect" onchange="renderEditorTable()" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
@@ -563,6 +586,7 @@
           <span id="studentCountBadge" class="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-bold border border-indigo-100">
             총 학생수: 0명
           </span>
+          </div>
         </div>
 
         <div class="teacher-filter-bar w-full xl:w-auto xl:ml-auto no-print">
@@ -1580,29 +1604,38 @@
     function getStudentByKey(key) {
       return getTeacherStudents().find(s => studentKeyOf(s) === key) || null;
     }
-    function getLockMap() { return teacherLocks || {}; }
-    function isStudentLocked(key) { return !!getLockMap()[key]; }
-    async function setStudentLocked(key, locked) {
-      const before = !!teacherLocks[key];
-      if (locked) teacherLocks[key] = true; else delete teacherLocks[key];
-      renderClassManagement();
-      try { await callServer('setStudentLock', key, !!locked); }
-      catch (err) { if (before) teacherLocks[key]=true; else delete teacherLocks[key]; renderClassManagement(); handleServerError(err, '학생 잠금 상태 저장에 실패했습니다.'); }
+    function getSummaryCollapsedMap() { return readLocalJson('teacherSummaryCollapsed', {}); }
+    function isStudentCardCollapsed(key) { return !!getSummaryCollapsedMap()[key]; }
+    function setStudentCardCollapsed(key, collapsed) {
+      const map = getSummaryCollapsedMap();
+      if (collapsed) map[key] = true; else delete map[key];
+      writeLocalJson('teacherSummaryCollapsed', map);
+      renderSummaryCards();
     }
-    function areAllStudentsLocked() {
+    function toggleStudentCard(key) { setStudentCardCollapsed(key, !isStudentCardCollapsed(key)); }
+    function toggleAllStudentCards() {
       const students = getTeacherStudents();
-      return students.length > 0 && students.every(s => isStudentLocked(studentKeyOf(s)));
+      const allCollapsed = students.length > 0 && students.every(s => isStudentCardCollapsed(studentKeyOf(s)));
+      const map = getSummaryCollapsedMap();
+      students.forEach(s => { const key=studentKeyOf(s); if (allCollapsed) delete map[key]; else map[key]=true; });
+      writeLocalJson('teacherSummaryCollapsed', map);
+      renderSummaryCards();
     }
-    async function toggleAllStudentLocks() {
-      const shouldLock = !areAllStudentsLocked();
-      const students = getTeacherStudents();
-      const before = {...teacherLocks};
-      students.forEach(s => { const key=studentKeyOf(s); if (shouldLock) teacherLocks[key]=true; else delete teacherLocks[key]; });
-      renderClassManagement();
-      try { await callServer('setAllStudentLocks', students.map(s=>studentKeyOf(s)), shouldLock); }
-      catch (err) { teacherLocks=before; renderClassManagement(); handleServerError(err, '전체 잠금 상태 저장에 실패했습니다.'); }
+    function toggleSummaryWidthPanel() { document.getElementById('summaryWidthPanel')?.classList.toggle('open'); }
+    function getSummaryWidths() { return readLocalJson('teacherSummaryWidths', {num:0.4,univ:1.2,type:1,dept:1.3,date:0.9,step1:0.8,final:0.8,fail:1.2}); }
+    function applySummaryWidths() {
+      const w=getSummaryWidths();
+      const grid=document.getElementById('studentSummaryGrid');
+      if (!grid) return;
+      const cols=`${w.num}fr ${w.univ}fr ${w.type}fr ${w.dept}fr ${w.date}fr ${w.step1}fr ${w.final}fr ${w.fail}fr .35fr`;
+      grid.querySelectorAll('.application-edit-row').forEach(row=>row.style.setProperty('--summary-cols',cols));
+      document.querySelectorAll('#summaryWidthPanel input[type=range]').forEach(input=>{ const k=input.dataset.col; if(w[k]!=null){input.value=w[k]; if(input.nextElementSibling) input.nextElementSibling.value=w[k];} });
     }
-    async function toggleStudentLock(key) { await setStudentLocked(key, !isStudentLocked(key)); }
+    function updateSummaryColumn(input) {
+      const w=getSummaryWidths(); w[input.dataset.col]=Number(input.value); writeLocalJson('teacherSummaryWidths',w); if(input.nextElementSibling) input.nextElementSibling.value=input.value; applySummaryWidths();
+    }
+    function formatInterviewShort(value) { return value ? formatDate(value) || value : ''; }
+
     function showTeacherModeChooser() {
       document.getElementById('teacherModeChooser').classList.remove('hidden');
       document.getElementById('teacherManagementSection').classList.add('hidden');
@@ -1645,8 +1678,6 @@
     async function updateApplicationField(id, field, value) {
       const target = rawDatabase.find(r => r.id === Number(id));
       if (!target) return;
-      const key = studentKeyOf({ num:target.num, name:target.name, gradeClass:target.gradeClass });
-      if (isStudentLocked(key)) return;
       const oldValue = target[field];
       target[field] = value;
       renderSummaryCards();
@@ -1655,7 +1686,7 @@
     }
     async function addApplicationForStudent(studentKey) {
       const student=getStudentByKey(studentKey);
-      if (!student || isStudentLocked(studentKey)) return;
+      if (!student) return;
       const record={id:Date.now()+Math.floor(Math.random()*1000),year:document.getElementById('globalYearSelect').value==='전체'?(years[0]||''):document.getElementById('globalYearSelect').value,gradeClass:student.gradeClass,num:Number(student.num),name:student.name,university:'',detailType:'',dept:'',recruitCount:'',region:'',minExam:'',interviewDate:'',step1:'',finalDate:'',finalStep:'',failReason:''};
       rawDatabase.push(record); renderSummaryCards();
       try { await callServer('addApplication',record); } catch(err){ rawDatabase=rawDatabase.filter(r=>r.id!==record.id); renderSummaryCards(); handleServerError(err,'지원 내역 추가에 실패했습니다.'); }
@@ -1663,12 +1694,12 @@
     async function deleteApplicationFromStudent(id) {
       const target=rawDatabase.find(r=>r.id===Number(id)); if(!target)return;
       const key=studentKeyOf({num:target.num,name:target.name,gradeClass:target.gradeClass});
-      if(isStudentLocked(key)||!confirm('이 지원 내역을 삭제할까요?'))return;
+      if(!confirm('이 지원 내역을 삭제할까요?'))return;
       rawDatabase=rawDatabase.filter(r=>r.id!==Number(id)); renderSummaryCards();
       try{await callServer('deleteApplication',Number(id));}catch(err){rawDatabase.push(target);renderSummaryCards();handleServerError(err,'지원 내역 삭제에 실패했습니다.');}
     }
     async function editStudentNameFromCard(key) {
-      const student=getStudentByKey(key); if(!student||isStudentLocked(key))return;
+      const student=getStudentByKey(key); if(!student)return;
       const newName=prompt('학생 이름을 수정하세요.',student.name);
       if(newName===null||!newName.trim()||newName.trim()===student.name)return;
       const oldName=student.name, nn=newName.trim();
@@ -1691,39 +1722,45 @@
         return searchHit && studentMatchesFilter(student, manageFilter);
       });
       document.getElementById('manageStudentCount').innerText = `학생 ${students.length}명`;
-      document.getElementById('globalLockButton').innerHTML = areAllStudentsLocked() ? '<i class="fa-solid fa-lock-open mr-1"></i>전체 잠금 해제' : '<i class="fa-solid fa-lock mr-1"></i>전체 잠금';
+      const allCollapsed = students.length > 0 && students.every(s => isStudentCardCollapsed(studentKeyOf(s)));
+      document.getElementById('globalExpandButton').innerHTML = allCollapsed ? '<i class="fa-solid fa-expand mr-1"></i>전체 펼치기' : '<i class="fa-solid fa-compress mr-1"></i>전체 접기';
       if (!students.length) { container.innerHTML = '<div class="col-span-full py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">선택 학급에 등록된 학생이 없습니다.</div>'; return; }
+      const widths=getSummaryWidths();
+      const cols=`${widths.num}fr ${widths.univ}fr ${widths.type}fr ${widths.dept}fr ${widths.date}fr ${widths.step1}fr ${widths.final}fr ${widths.fail}fr .35fr`;
       container.innerHTML = students.map(student => {
-        const key = studentKeyOf(student), locked = isStudentLocked(key), monitored = isStudentMonitored(student);
-        return `<article class="student-summary-card ${locked ? 'locked' : ''} ${monitored ? 'student-monitor-row' : ''}">
+        const key = studentKeyOf(student), collapsed = isStudentCardCollapsed(key), monitored = isStudentMonitored(student);
+        return `<article class="student-summary-card ${collapsed ? 'collapsed' : ''} ${monitored ? 'student-monitor-row' : ''}">
           <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <span class="text-[11px] bg-indigo-100 text-indigo-700 rounded-full px-2 py-1 font-extrabold">${escapeHtml(student.num)}</span>
               <button onclick="selectConsultStudent('${escapeJs(key)}')" class="font-extrabold text-slate-800 hover:text-indigo-600 truncate">${escapeHtml(student.name)}</button>
               <span class="text-[10px] text-slate-400">${escapeHtml(normalizeClassName(student.gradeClass))}</span>
+              ${monitored ? '<span class="text-[9px] bg-amber-100 text-amber-700 rounded-full px-2 py-1 font-bold">상위권</span>' : ''}
             </div>
             <div class="flex items-center gap-1 no-print">
               <button onclick="toggleStudentMonitoring('${escapeJs(key)}')" class="monitor-star ${monitored?'active':''} text-[13px] px-1" title="상위권 모니터링 지정"><i class="fa-solid fa-star"></i></button>
-              <button onclick="editStudentNameFromCard('${escapeJs(key)}')" class="text-[10px] px-2 py-1 rounded bg-white border border-slate-200 ${locked?'opacity-40 cursor-not-allowed':''}" ${locked?'disabled':''}>이름 수정</button>
-              <button onclick="toggleStudentLock('${escapeJs(key)}')" class="text-[10px] px-2 py-1 rounded ${locked?'bg-amber-100 text-amber-700':'bg-slate-200 text-slate-700'} font-bold"><i class="fa-solid ${locked?'fa-lock':'fa-lock-open'} mr-1"></i>${locked?'잠금':'개별 잠금'}</button>
+              <button onclick="editStudentNameFromCard('${escapeJs(key)}')" class="text-[10px] px-2 py-1 rounded bg-white border border-slate-200">이름 수정</button>
+              <button onclick="toggleStudentCard('${escapeJs(key)}')" class="summary-collapse-button"><i class="fa-solid ${collapsed?'fa-chevron-down':'fa-chevron-up'} mr-1"></i>${collapsed?'펼치기':'접기'}</button>
             </div>
           </div>
-          <div class="p-3 space-y-2">
-            <div class="application-edit-row text-[10px] font-bold text-slate-400 px-1"><span>연번</span><span>대학명</span><span>전형명</span><span>학과</span><span>1단계</span><span>최종단계</span><span>불합격사유</span><span></span></div>
-            ${student.applications.map((app,idx)=>`<div class="application-edit-row">
+          ${collapsed ? '' : `<div class="p-3 space-y-2">
+            <div class="application-edit-row text-[10px] font-bold text-slate-400 px-1" style="--summary-cols:${cols}"><span>연번</span><span>대학명</span><span>전형명</span><span>학과</span><span>면접/논술일</span><span>1단계</span><span>최종단계</span><span>불합격사유</span><span></span></div>
+            ${student.applications.map((app,idx)=>`<div class="application-edit-row" style="--summary-cols:${cols}">
               <span class="text-[10px] text-center font-bold text-slate-500">${idx+1}</span>
-              <input class="summary-field" value="${escapeHtml(summarizeUniv(app.university))}" onchange="updateApplicationField(${app.id},'university',this.value)" ${locked?'disabled':''} placeholder="대학명">
-              <input class="summary-field" value="${escapeHtml(summarizeDetailType(app.detailType))}" onchange="updateApplicationField(${app.id},'detailType',this.value)" ${locked?'disabled':''} placeholder="전형명">
-              <input class="summary-field app-dept" value="${escapeHtml(app.dept||'')}" onchange="updateApplicationField(${app.id},'dept',this.value)" ${locked?'disabled':''} placeholder="모집단위/학과">
-              <select class="summary-field" onchange="updateApplicationField(${app.id},'step1',this.value)" ${locked?'disabled':''}><option value="" ${!app.step1?'selected':''}>-</option><option value="합격" ${app.step1==='합격'?'selected':''}>합격</option><option value="1차합격" ${app.step1==='1차합격'?'selected':''}>1차합격</option><option value="1차불합" ${app.step1==='1차불합'?'selected':''}>1차불합</option></select>
-              <select class="summary-field" onchange="updateApplicationField(${app.id},'finalStep',this.value)" ${locked?'disabled':''}><option value="" ${!app.finalStep?'selected':''}>-</option><option value="합격" ${app.finalStep==='합격'?'selected':''}>합격</option><option value="추합" ${app.finalStep==='추합'?'selected':''}>추합</option><option value="불합격" ${app.finalStep==='불합격'?'selected':''}>불합격</option></select>
-              <input class="summary-field" value="${escapeHtml(app.failReason||'')}" onchange="updateApplicationField(${app.id},'failReason',this.value)" ${locked?'disabled':''} placeholder="불합격 사유">
-              <button onclick="deleteApplicationFromStudent(${app.id})" class="no-print text-rose-500 hover:bg-rose-50 rounded p-1 ${locked?'opacity-30 cursor-not-allowed':''}" ${locked?'disabled':''} title="삭제"><i class="fa-solid fa-trash"></i></button>
+              <input class="summary-field" value="${escapeHtml(summarizeUniv(app.university))}" onchange="updateApplicationField(${app.id},'university',this.value)" placeholder="대학명" title="${escapeHtml(app.university||'')}">
+              <input class="summary-field" value="${escapeHtml(summarizeDetailType(app.detailType))}" onchange="updateApplicationField(${app.id},'detailType',this.value)" placeholder="전형명">
+              <input class="summary-field app-dept" value="${escapeHtml(app.dept||'')}" onchange="updateApplicationField(${app.id},'dept',this.value)" placeholder="모집단위/학과">
+              <input class="summary-field" value="${escapeHtml(app.interviewDate||'')}" onchange="updateApplicationField(${app.id},'interviewDate',this.value)" placeholder="예: 10/12" title="면접/논술일">
+              <select class="summary-field" onchange="updateApplicationField(${app.id},'step1',this.value)"><option value="" ${!app.step1?'selected':''}>-</option><option value="합격" ${app.step1==='합격'?'selected':''}>합격</option><option value="1차합격" ${app.step1==='1차합격'?'selected':''}>1차합격</option><option value="1차불합" ${app.step1==='1차불합'?'selected':''}>1차불합</option></select>
+              <select class="summary-field" onchange="updateApplicationField(${app.id},'finalStep',this.value)"><option value="" ${!app.finalStep?'selected':''}>-</option><option value="합격" ${app.finalStep==='합격'?'selected':''}>합격</option><option value="추합" ${app.finalStep==='추합'?'selected':''}>추합</option><option value="불합격" ${app.finalStep==='불합격'?'selected':''}>불합격</option></select>
+              <input class="summary-field" value="${escapeHtml(app.failReason||'')}" onchange="updateApplicationField(${app.id},'failReason',this.value)" placeholder="불합격 사유">
+              <button onclick="deleteApplicationFromStudent(${app.id})" class="no-print text-rose-500 hover:bg-rose-50 rounded p-1" title="삭제"><i class="fa-solid fa-trash"></i></button>
             </div>`).join('')}
-            <button onclick="addApplicationForStudent('${escapeJs(key)}')" class="no-print w-full border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-[11px] font-bold rounded-lg py-2 ${locked?'opacity-40 cursor-not-allowed':''}" ${locked?'disabled':''}><i class="fa-solid fa-plus mr-1"></i>지원 내역 추가</button>
-          </div>
+            <button onclick="addApplicationForStudent('${escapeJs(key)}')" class="no-print w-full border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-[11px] font-bold rounded-lg py-2"><i class="fa-solid fa-plus mr-1"></i>지원 내역 추가</button>
+          </div>`}
         </article>`;
       }).join('');
+      applySummaryWidths();
     }
 
     function selectConsultStudent(key) {
@@ -1753,7 +1790,7 @@
       if (!student) return;
       const locked = true;
       document.getElementById('consultStudentCard').innerHTML = `<article class="student-summary-card locked">
-        <div class="px-4 py-3 bg-indigo-50 border-b border-indigo-100"><div class="flex items-center gap-2"><span class="bg-indigo-600 text-white rounded-full px-2 py-1 text-[11px] font-extrabold">${escapeHtml(student.num)}</span><h4 class="font-extrabold text-slate-800">${escapeHtml(student.name)}</h4></div><p class="text-[10px] text-slate-400 mt-1">상담 화면에서는 전체 학생 카드가 잠겨 있습니다.</p></div>
+        <div class="px-4 py-3 bg-indigo-50 border-b border-indigo-100"><div class="flex items-center gap-2"><span class="bg-indigo-600 text-white rounded-full px-2 py-1 text-[11px] font-extrabold">${escapeHtml(student.num)}</span><h4 class="font-extrabold text-slate-800">${escapeHtml(student.name)}</h4></div><p class="text-[10px] text-slate-400 mt-1">상담 화면에서는 선택한 학생의 지원 내역만 표시됩니다.</p></div>
         <div class="p-3 space-y-2">${student.applications.map((app,i)=>`<div class="border border-slate-200 rounded-lg p-3 bg-white"><div class="text-[10px] font-bold text-slate-400 mb-2">지원 ${i+1}</div><div class="grid grid-cols-2 gap-2"><div><span class="field-label">대학명</span><div class="text-xs font-bold text-slate-800">${escapeHtml(summarizeUniv(app.university)||'-')}</div></div><div><span class="field-label">전형명</span><div class="text-xs text-slate-700">${escapeHtml(summarizeDetailType(app.detailType)||'-')}</div></div><div class="col-span-2"><span class="field-label">학과</span><div class="text-xs text-slate-700">${escapeHtml(app.dept||'-')}</div></div><div><span class="field-label">1단계</span><div class="text-xs">${escapeHtml(app.step1||'-')}</div></div><div><span class="field-label">최종단계</span><div class="text-xs">${escapeHtml(app.finalStep||'-')}</div></div></div></div>`).join('')}</div>
       </article>`;
     }
