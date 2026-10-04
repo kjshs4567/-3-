@@ -137,6 +137,8 @@
     .summary-field:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.10); }
     .summary-field:disabled { background:#eef2f7; color:#94a3b8; cursor:not-allowed; }
     .summary-field { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .summary-readonly { min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:1px solid #e2e8f0; border-radius:7px; padding:6px 7px; font-size:11px; background:#f8fafc; }
+    .consult-summary-row > * { min-width:0; }
     .summary-width-panel { display:none; grid-template-columns:repeat(3,minmax(180px,1fr)); gap:8px; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; margin-bottom:10px; }
     .summary-width-panel.open { display:grid; }
     .summary-width-control { display:grid; grid-template-columns:58px 1fr 42px; align-items:center; gap:6px; font-size:10px; color:#64748b; }
@@ -1786,13 +1788,23 @@
       renderConsultations();
     }
     function renderConsultStudentCard() {
-      const student = getStudentByKey(consultStudentKey);
-      if (!student) return;
-      const locked = true;
-      document.getElementById('consultStudentCard').innerHTML = `<article class="student-summary-card locked">
-        <div class="px-4 py-3 bg-indigo-50 border-b border-indigo-100"><div class="flex items-center gap-2"><span class="bg-indigo-600 text-white rounded-full px-2 py-1 text-[11px] font-extrabold">${escapeHtml(student.num)}</span><h4 class="font-extrabold text-slate-800">${escapeHtml(student.name)}</h4></div><p class="text-[10px] text-slate-400 mt-1">상담 화면에서는 선택한 학생의 지원 내역만 표시됩니다.</p></div>
-        <div class="p-3 space-y-2">${student.applications.map((app,i)=>`<div class="border border-slate-200 rounded-lg p-3 bg-white"><div class="text-[10px] font-bold text-slate-400 mb-2">지원 ${i+1}</div><div class="grid grid-cols-2 gap-2"><div><span class="field-label">대학명</span><div class="text-xs font-bold text-slate-800">${escapeHtml(summarizeUniv(app.university)||'-')}</div></div><div><span class="field-label">전형명</span><div class="text-xs text-slate-700">${escapeHtml(summarizeDetailType(app.detailType)||'-')}</div></div><div class="col-span-2"><span class="field-label">학과</span><div class="text-xs text-slate-700">${escapeHtml(app.dept||'-')}</div></div><div><span class="field-label">1단계</span><div class="text-xs">${escapeHtml(app.step1||'-')}</div></div><div><span class="field-label">최종단계</span><div class="text-xs">${escapeHtml(app.finalStep||'-')}</div></div></div></div>`).join('')}</div>
-      </article>`;
+      const student=getStudentByKey(consultStudentKey); if(!student)return;
+      const widths=getSummaryWidths(), cols=`${widths.num}fr ${widths.univ}fr ${widths.type}fr ${widths.dept}fr ${widths.date}fr ${widths.step1}fr ${widths.final}fr ${widths.fail}fr`;
+      const rows=student.applications.map((app,i)=>`<div class="application-edit-row consult-summary-row" style="--summary-cols:${cols}">
+        <span class="text-[10px] text-center font-bold text-slate-500">${i+1}</span><span class="summary-readonly" title="${escapeHtml(app.university||'')}">${escapeHtml(summarizeUniv(app.university)||'-')}</span><span class="summary-readonly">${escapeHtml(summarizeDetailType(app.detailType)||'-')}</span><span class="summary-readonly">${escapeHtml(app.dept||'-')}</span><span class="summary-readonly">${escapeHtml(app.interviewDate||'-')}</span><span class="summary-readonly">${escapeHtml(app.step1||'-')}</span><span class="summary-readonly">${escapeHtml(app.finalStep||'-')}</span><span class="summary-readonly">${escapeHtml(app.failReason||'-')}</span>
+      </div>`).join('');
+      document.getElementById('consultStudentCard').innerHTML=`<article class="student-summary-card">
+        <div class="px-4 py-3 bg-indigo-50 border-b border-indigo-100"><div class="flex items-center gap-2"><span class="bg-indigo-600 text-white rounded-full px-2 py-1 text-[11px] font-extrabold">${escapeHtml(student.num)}</span><h4 class="font-extrabold text-slate-800">${escapeHtml(student.name)}</h4></div><p class="text-[10px] text-slate-400 mt-1">한눈 요약과 동일한 지원 내역입니다.</p></div>
+        <div class="p-3"><div class="application-edit-row text-[10px] font-bold text-slate-400 px-1" style="--summary-cols:${cols}"><span>연번</span><span>대학명</span><span>전형명</span><span>학과</span><span>면접/논술일</span><span>1단계</span><span>최종단계</span><span>불합격사유</span></div><div class="space-y-1 mt-1">${rows||'<div class="text-xs text-slate-400 py-4 text-center">지원 내역이 없습니다.</div>'}</div></div>
+      </article><div class="mt-3 bg-white border border-slate-200 rounded-xl shadow-sm p-3"><div class="flex items-center justify-between mb-2"><h4 class="font-extrabold text-slate-800 text-sm">${escapeHtml(student.name)} 개인 일정</h4><span class="text-[10px] text-slate-400">월별 일정</span></div><div id="consultPersonalCalendar"></div></div>`;
+      renderPersonalStudentCalendar(student);
+    }
+    function renderPersonalStudentCalendar(student){
+      const target=document.getElementById('consultPersonalCalendar'); if(!target)return;
+      const events=getCalendarEvents().filter(e=>e.studentKey===studentKeyOf(student) || (e.type==='final' && e.studentNames?.includes(student.name)));
+      if(!events.length){target.innerHTML='<div class="text-xs text-slate-400 py-5 text-center">등록된 일정이 없습니다.</div>';return;}
+      const grouped={}; events.forEach(e=>{const k=dateKey(e.date);(grouped[k]||(grouped[k]=[])).push(e);});
+      target.innerHTML=Object.keys(grouped).sort().map(k=>`<div class="border-b border-slate-100 last:border-0 py-2"><div class="text-[10px] font-bold text-slate-500 mb-1">${escapeHtml(k)}</div>${grouped[k].map(e=>`<button onclick="selectCalendarEvent('${escapeJs(e.id+'_'+e.type)}')" class="calendar-event ${e.type} !inline-block !w-auto !mt-0 mr-1">${escapeHtml(calendarEventText(e))}</button>`).join('')}</div>`).join('');
     }
     function addConsultationRecord() {
       if (!consultStudentKey) return;
@@ -1856,47 +1868,61 @@
       return null;
     }
     function getCalendarEvents() {
-      const events=[];
+      const raw=[];
       getTeacherStudents().forEach(student => student.applications.forEach(app => {
-        const base={studentKey:studentKeyOf(student),studentName:student.name,num:student.num,university:summarizeUniv(app.university),id:app.id};
-        const d1=parseScheduleDate(app.interviewDate,app.year); if(d1 && !isNaN(d1)) events.push({...base,date:d1,type:'interview',label:'면접/논술',raw:app.interviewDate});
-        const d2=parseScheduleDate(app.finalDate,app.year); if(d2 && !isNaN(d2)) events.push({...base,date:d2,type:'final',label:'최종발표',raw:app.finalDate});
+        const base={studentKey:studentKeyOf(student),studentName:student.name,num:student.num,university:summarizeUniv(app.university),id:app.id,detailType:app.detailType||''};
+        const d1=parseScheduleDate(app.interviewDate,app.year);
+        if(d1 && !isNaN(d1)) {
+          const typeText=String(app.detailType||'');
+          let eventType='interview', label='면접';
+          if(typeText.includes('논술')) { eventType='essay'; label='논술'; }
+          else if(typeText.includes('실기') || typeText.includes('실적')) { eventType='practical'; label='실기'; }
+          raw.push({...base,date:d1,type:eventType,label});
+        }
+        const d2=parseScheduleDate(app.finalDate,app.year);
+        if(d2 && !isNaN(d2)) raw.push({...base,date:d2,type:'final',label:'최종'});
       }));
-      return events;
+      // 같은 날짜의 최종발표는 대학별로 묶어서 표시
+      const finals=new Map(), others=[];
+      raw.forEach(e=>{
+        if(e.type!=='final'){ others.push(e); return; }
+        const key=`${dateKey(e.date)}|${e.university||'대학 미입력'}`;
+        if(!finals.has(key)) finals.set(key,{...e,id:`finalgroup_${key}`,grouped:true,count:0,studentNames:[]});
+        const g=finals.get(key); g.count++; if(e.studentName && !g.studentNames.includes(e.studentName)) g.studentNames.push(e.studentName);
+      });
+      finals.forEach(g=>{g.label=`최종(${g.count}명)`;});
+      return [...others,...Array.from(finals.values())];
     }
     function dateKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
     function changeCalendarMonth(delta) { calendarCursor = new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+delta,1); renderCalendar(); }
     function goCalendarToday() { const now=new Date(); calendarCursor=new Date(now.getFullYear(),now.getMonth(),1); renderCalendar(); }
+    function calendarEventText(e){
+      if(e.type==='final') return `${e.university||'대학 미입력'} ${e.label}`;
+      return `${e.studentName}/ ${e.university||'대학 미입력'} ${e.label}`;
+    }
     function renderCalendar() {
       const events=getCalendarEvents(), year=calendarCursor.getFullYear(), month=calendarCursor.getMonth();
       document.getElementById('calendarMonthLabel').innerText=`${year}년 ${month+1}월`;
-      const grid=document.getElementById('calendarGrid');
-      const heads=['일','월','화','수','목','금','토'];
+      const grid=document.getElementById('calendarGrid'), heads=['일','월','화','수','목','금','토'];
       let html=heads.map(x=>`<div class="calendar-head">${x}</div>`).join('');
-      const first=new Date(year,month,1), last=new Date(year,month+1,0); const start=first.getDay(), total=Math.ceil((start+last.getDate())/7)*7;
-      const todayKey=dateKey(new Date());
-      for(let i=0;i<total;i++) { const dayNum=i-start+1; if(dayNum<1||dayNum>last.getDate()){ html+='<div class="calendar-day muted"></div>'; continue; } const d=new Date(year,month,dayNum), dk=dateKey(d), dayEvents=events.filter(e=>dateKey(e.date)===dk); html+=`<div class="calendar-day ${dk===todayKey?'today':''}"><div class="text-[11px] font-bold text-slate-500">${dayNum}</div>${dayEvents.map(e=>`<button onclick="selectCalendarEvent('${escapeJs(e.id+'_'+e.type)}')" class="calendar-event ${e.type}">${escapeHtml(e.studentName)} · ${escapeHtml(e.label)}</button>`).join('')}</div>`; }
+      const first=new Date(year,month,1), last=new Date(year,month+1,0), start=first.getDay(), total=Math.ceil((start+last.getDate())/7)*7, todayKey=dateKey(new Date());
+      for(let i=0;i<total;i++) { const dayNum=i-start+1; if(dayNum<1||dayNum>last.getDate()){html+='<div class="calendar-day muted"></div>';continue;} const d=new Date(year,month,dayNum),dk=dateKey(d),dayEvents=events.filter(e=>dateKey(e.date)===dk); html+=`<div class="calendar-day ${dk===todayKey?'today':''}"><div class="text-[11px] font-bold text-slate-500">${dayNum}</div>${dayEvents.map(e=>`<button onclick="selectCalendarEvent('${escapeJs(e.id+'_'+e.type)}')" class="calendar-event ${e.type}">${escapeHtml(calendarEventText(e))}</button>`).join('')}</div>`; }
       grid.innerHTML=html;
-      const selected = selectedCalendarEventKey ? events.find(e => `${e.id}_${e.type}`===selectedCalendarEventKey) : null;
-      const monthEvents = events.filter(e => e.date.getFullYear()===year && e.date.getMonth()===month).sort((a,b)=>a.date-b.date);
-      const defaultDate = selected ? selected.date : (monthEvents[0] ? monthEvents[0].date : new Date(year,month,1));
-      renderCalendarDayList(dateKey(defaultDate), events);
+      const selected=selectedCalendarEventKey?events.find(e=>`${e.id}_${e.type}`===selectedCalendarEventKey):null;
+      const monthEvents=events.filter(e=>e.date.getFullYear()===year&&e.date.getMonth()===month).sort((a,b)=>a.date-b.date);
+      const defaultDate=selected?selected.date:(monthEvents[0]?monthEvents[0].date:new Date(year,month,1));
+      renderCalendarDayList(dateKey(defaultDate),events);
     }
-    function renderCalendarDayList(dk, events=getCalendarEvents()) {
-      const parts=dk.split('-').map(Number), d=new Date(parts[0],parts[1]-1,parts[2]);
+    function renderCalendarDayList(dk,events=getCalendarEvents()) {
+      const parts=dk.split('-').map(Number),d=new Date(parts[0],parts[1]-1,parts[2]);
       document.getElementById('calendarSelectedDateTitle').innerText=`${d.getMonth()+1}월 ${d.getDate()}일 일정`;
-      const dayEvents=events.filter(e=>dateKey(e.date)===dk), list=document.getElementById('calendarDayList');
-      if(!dayEvents.length){ list.innerHTML='<div class="text-xs text-slate-400 py-6 text-center">등록된 일정이 없습니다.</div>'; return; }
-      list.innerHTML=dayEvents.map(e=>`<button onclick="selectCalendarEvent('${escapeJs(e.id+'_'+e.type)}')" class="w-full text-left border border-slate-200 rounded-lg p-3 hover:bg-indigo-50 transition"><div class="flex items-center justify-between gap-2"><strong class="text-xs text-slate-800">${escapeHtml(e.studentName)} (${escapeHtml(e.num)}번)</strong><span class="text-[10px] ${e.type==='final'?'text-emerald-600':'text-orange-600'}">${escapeHtml(e.label)}</span></div><div class="text-[11px] text-slate-500 mt-1">${escapeHtml(e.university||'대학 미입력')}</div></button>`).join('');
+      const dayEvents=events.filter(e=>dateKey(e.date)===dk),list=document.getElementById('calendarDayList');
+      if(!dayEvents.length){list.innerHTML='<div class="text-xs text-slate-400 py-6 text-center">등록된 일정이 없습니다.</div>';return;}
+      list.innerHTML=dayEvents.map(e=>`<button onclick="selectCalendarEvent('${escapeJs(e.id+'_'+e.type)}')" class="w-full text-left border border-slate-200 rounded-lg p-3 hover:bg-indigo-50 transition"><div class="flex items-center justify-between gap-2"><strong class="text-xs text-slate-800">${escapeHtml(calendarEventText(e))}</strong><span class="text-[10px] ${e.type==='final'?'text-emerald-600':e.type==='essay'?'text-orange-600':e.type==='practical'?'text-blue-600':'text-pink-600'}">${e.type==='final'?'최종':''}</span></div>${e.type!=='final'?`<div class="text-[10px] text-slate-500 mt-1">${escapeHtml(e.university||'대학 미입력')}</div>`:''}</button>`).join('');
     }
     function selectCalendarEvent(key) {
-      selectedCalendarEventKey=key;
-      const event=getCalendarEvents().find(e=>`${e.id}_${e.type}`===key); if(!event)return;
-      renderCalendarDayList(dateKey(event.date));
-      const memo=teacherCalendarMemos[key]||'';
-      document.getElementById('calendarMemoPanel').classList.remove('hidden');
-      document.getElementById('calendarMemoTitle').innerText=`${event.studentName} · ${event.university||'대학 미입력'} · ${event.label}`;
-      document.getElementById('calendarMemoInput').value=memo;
+      selectedCalendarEventKey=key; const event=getCalendarEvents().find(e=>`${e.id}_${e.type}`===key); if(!event)return;
+      renderCalendarDayList(dateKey(event.date)); const memo=teacherCalendarMemos[key]||''; document.getElementById('calendarMemoPanel').classList.remove('hidden'); document.getElementById('calendarMemoTitle').innerText=calendarEventText(event); document.getElementById('calendarMemoInput').value=memo;
     }
     function saveCalendarMemo(){if(!selectedCalendarEventKey)return;const memo=document.getElementById('calendarMemoInput').value;teacherCalendarMemos[selectedCalendarEventKey]=memo;callServer('saveCalendarMemo',selectedCalendarEventKey,memo).then(()=>alert('메모가 서버에 저장되었습니다.')).catch(err=>handleServerError(err,'일정 메모 저장에 실패했습니다.'));}
 
